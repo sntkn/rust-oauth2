@@ -1,0 +1,24 @@
+version: '3.9'
+
+services:
+  database:
+    image: postgres:latest
+    container_name: database
+    restart: always
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/database/init:/docker-entrypoint-initdb.d
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: admin
+    ports:
+      - 5432:5432
+  session:
+    image: redis:latest
+    ports:
+      - 6379:6379
+    volumes:
+      - redisdata:/data
+volumes:
+  pgdata:
+  redisdata:
