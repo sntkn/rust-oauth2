@@ -12,7 +12,8 @@ use serde::Serialize;
 async fn main() {
     let router = Router::new()
         .route("/", get(hello_world))
-        .route("/greet/:name", get(greet));
+        .route("/greet/:name", get(greet))
+        .route("/authorize", get(authorize));
     let listner = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listner, router).await.unwrap();
 }
@@ -34,11 +35,20 @@ async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse 
     HtmlTemplate(template)
 }
 
+async fn authorize() -> impl IntoResponse {
+    let template = AuthorizeTemplate {};
+    HtmlTemplate(template)
+}
+
 #[derive(Template)]
 #[template(path = "hello.html")]
 struct HelloTemplate {
     name: String,
 }
+
+#[derive(Template)]
+#[template(path = "authorize.html")]
+struct AuthorizeTemplate {}
 
 struct HtmlTemplate<T>(T);
 
