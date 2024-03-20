@@ -1,28 +1,50 @@
+use std::env;
+use std::sync::Arc;
+mod entity;
+
+use crate::entity::oauth2_clients::Entity as OAuth2ClientEntity;
+
 use askama::Template;
 use axum::{
-    extract,
+    extract::{self, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::get,
     Json, Router,
 };
+use sea_orm::*;
 use serde::Serialize;
 
 #[tokio::main]
 async fn main() {
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+    let conn = Arc::new(Database::connect(&db_url).await.unwrap());
+
+    let state = AppState { conn };
+
     let router = Router::new()
         .route("/", get(hello_world))
         .route("/greet/:name", get(greet))
-        .route("/authorize", get(authorize));
+        .route("/authorize", get(authorize))
+        .with_state(state);
     let listner = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listner, router).await.unwrap();
 }
 
-async fn hello_world() -> Json<HelloWorld> {
-    let hello = HelloWorld {
-        text: "Hello World".to_string(),
-    };
-    Json(hello)
+#[derive(Clone)]
+struct AppState {
+    conn: Arc<DatabaseConnection>,
+}
+
+async fn hello_world(state: State<AppState>) -> Result<impl IntoResponse, StatusCode> {
+    let client = OAuth2ClientEntity::find().one(&*state.conn).await.unwrap();
+
+    match client {
+        Some(client) => Ok(Json(HelloWorld {
+            text: client.name.to_string(),
+        })),
+        None => Err(StatusCode::NOT_FOUND),
+    }
 }
 
 #[derive(Serialize)]
