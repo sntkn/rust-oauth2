@@ -37,8 +37,24 @@ async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse 
 
 async fn authorize() -> impl IntoResponse {
     let template = AuthorizeTemplate {};
+    // validattion
+    // response type が code であること
+    // state が 存在すること
+    // client_id が そんざいすること
+    // redirect_uri が一致すること
+
+    // リクエストパラメータをセッションに保存する
+    // ログインフォームを表示する
+
     HtmlTemplate(template)
 }
+
+// ログインチェック
+// ログイン NG の場合、ログインフォームにリダイレクト
+// OK の場合、セッションを発行しログイン状態にする
+// 認可コードを生成する
+// 認可コードとstate を保存する
+// redirect_uri に認可コードと共にリダイレクトする
 
 #[derive(Template)]
 #[template(path = "hello.html")]
