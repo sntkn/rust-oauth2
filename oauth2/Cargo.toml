@@ -13,6 +13,5 @@ sea-orm = { version = "^0.12.0", features = [
   "sqlx-postgres",
   "runtime-async-std-native-tls",
   "macros",
-  "mock",
 ] }
 askama = "0.12.1"

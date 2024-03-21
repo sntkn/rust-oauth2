@@ -1,5 +1,4 @@
 use std::env;
-use std::sync::Arc;
 mod entity;
 
 use crate::entity::oauth2_clients::Entity as OAuth2ClientEntity;
@@ -18,7 +17,7 @@ use serde::Serialize;
 #[tokio::main]
 async fn main() {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-    let conn = Arc::new(Database::connect(&db_url).await.unwrap());
+    let conn = Database::connect(db_url).await.unwrap();
 
     let state = AppState { conn };
 
@@ -33,11 +32,11 @@ async fn main() {
 
 #[derive(Clone)]
 struct AppState {
-    conn: Arc<DatabaseConnection>,
+    conn: DatabaseConnection,
 }
 
 async fn hello_world(state: State<AppState>) -> Result<impl IntoResponse, StatusCode> {
-    let client = OAuth2ClientEntity::find().one(&*state.conn).await.unwrap();
+    let client = OAuth2ClientEntity::find().one(&state.conn).await.unwrap();
 
     match client {
         Some(client) => Ok(Json(HelloWorld {
