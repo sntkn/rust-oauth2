@@ -5,19 +5,21 @@ use crate::entity::oauth2_clients::Entity as OAuth2ClientEntity;
 
 use askama::Template;
 use axum::{
-    extract::{self, State},
+    extract::{self, Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::get,
     Json, Router,
 };
+use axum_valid::Valid;
 use sea_orm::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use validator::Validate;
 
 #[tokio::main]
 async fn main() {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-    let conn = Database::connect(db_url).await.unwrap();
+    let conn: DatabaseConnection = Database::connect(db_url).await.unwrap();
 
     let state = AppState { conn };
 
@@ -51,13 +53,49 @@ struct HelloWorld {
     text: String,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+pub struct AuthorizeInput {
+    #[validate(length(min = 1, message = "Paramater 'response_type' can not be empty"))]
+    pub response_type: String,
+    #[validate(length(min = 1, message = "Paramater 'state' can not be empty"))]
+    pub state: String,
+    #[validate(length(min = 1, message = "Paramater 'client_id' can not be empty"))]
+    pub client_id: String,
+    #[validate(length(min = 1, message = "Paramater 'redirect_uri' can not be empty"))]
+    pub redirect_uri: String,
+}
+
+//#[async_trait]
+//impl<T, S> FromRequest<S> for ValidatedForm<T>
+//where
+//    T: DeserializeOwned + Validate,
+//    S: Send + Sync,
+//{
+//    type Rejection = (StatusCode, String);//
+
+//    async fn from_request(req: Request, state: &S) -> Result<Self, Self::Rejection> {
+//        let Json(value) = Json::<T>::from_request(req, state)
+//            .await
+//            .map_err(|rejection| {
+//                let message = format!("Json parse error: [{}]", rejection);
+//                (StatusCode::BAD_REQUEST, message)
+//            })?;
+//        value.validate().map_err(|rejection| {
+//            let message = format!("Validation error: [{}]", rejection).replace('\n', ", ");
+//            (StatusCode::BAD_REQUEST, message)
+//        })?;
+//        Ok(ValidatedForm(value))
+//    }
+//}
+
 async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse {
     let template = HelloTemplate { name };
     HtmlTemplate(template)
 }
 
-async fn authorize() -> impl IntoResponse {
-    let template = AuthorizeTemplate {};
+async fn authorize(Valid(Query(input)): Valid<Query<AuthorizeInput>>) -> impl IntoResponse {
+    let template = AuthorizeTemplate { state: input.state };
+
     // validattion
     // response type が code であること
     // state が 存在すること
@@ -66,7 +104,6 @@ async fn authorize() -> impl IntoResponse {
 
     // リクエストパラメータをセッションに保存する
     // ログインフォームを表示する
-
     HtmlTemplate(template)
 }
 
@@ -85,7 +122,9 @@ struct HelloTemplate {
 
 #[derive(Template)]
 #[template(path = "authorize.html")]
-struct AuthorizeTemplate {}
+struct AuthorizeTemplate {
+    state: String,
+}
 
 struct HtmlTemplate<T>(T);
 
