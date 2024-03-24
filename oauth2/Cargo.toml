@@ -17,3 +17,6 @@ sea-orm = { version = "^0.12.0", features = [
 askama = "0.12.1"
 validator = { version = "0.17.0", features = ["derive"] }
 axum-valid = "0.17.0"
+regex = "1.10.4"
+uuid = "1.8.0"
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
