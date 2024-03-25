@@ -33,7 +33,7 @@ async fn main() {
     let router = Router::new()
         .route("/", get(hello_world))
         .route("/greet/:name", get(greet))
-        .route("/authorize", get(authorize))
+        .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .with_state(state);
     let listner = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listner, router).await.unwrap();
@@ -131,23 +131,28 @@ async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse 
 async fn authorize(
     Valid(Query(input)): Valid<Query<AuthorizeInput>>,
     state: State<AppState>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, StatusCode> {
     let parsed_uuid = Uuid::parse_str(&input.client_id).unwrap();
+    // client_id が そんざいすること
     let client = OAuth2ClientEntity::find_by_id(parsed_uuid)
         .one(&state.conn)
-        .await; // .unwrap();
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::FORBIDDEN)?;
 
-    let template = AuthorizeTemplate { state: input.state };
-
-    // validattion
-    // response type が code であること
-    // state が 存在すること
-    // client_id が そんざいすること
     // redirect_uri が一致すること
+    if input.redirect_uri != client.redirect_uris {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let template = AuthorizeTemplate {
+        state: input.state,
+        client_id: client.id.to_string(),
+    };
 
     // リクエストパラメータをセッションに保存する
     // ログインフォームを表示する
-    HtmlTemplate(template)
+    Ok(HtmlTemplate(template))
 }
 
 // ログインチェック
@@ -167,6 +172,7 @@ struct HelloTemplate {
 #[template(path = "authorize.html")]
 struct AuthorizeTemplate {
     state: String,
+    client_id: String,
 }
 
 struct HtmlTemplate<T>(T);
