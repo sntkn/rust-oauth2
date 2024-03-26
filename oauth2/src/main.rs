@@ -4,6 +4,8 @@ mod entity;
 use crate::entity::oauth2_clients::Entity as OAuth2ClientEntity;
 
 use askama::Template;
+use async_redis_session::RedisSessionStore;
+use async_session::{Session, SessionStore};
 use axum::{
     extract::{self, Query, State},
     http::StatusCode,
@@ -28,7 +30,12 @@ async fn main() {
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
     let conn: DatabaseConnection = Database::connect(db_url).await.unwrap();
 
-    let state = AppState { conn };
+    let store = RedisSessionStore::new("redis://localhost:6379/").unwrap();
+    let session = Session::new();
+    let cookie_value = store.store_session(session).await.unwrap().unwrap();
+    let session = store.load_session(cookie_value).await.unwrap().unwrap();
+
+    let state = AppState { conn, session };
 
     let router = Router::new()
         .route("/", get(hello_world))
@@ -42,6 +49,7 @@ async fn main() {
 #[derive(Clone)]
 struct AppState {
     conn: DatabaseConnection,
+    session: Session,
 }
 
 async fn hello_world(state: State<AppState>) -> Result<impl IntoResponse, StatusCode> {
@@ -130,7 +138,7 @@ async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse 
 
 async fn authorize(
     Valid(Query(input)): Valid<Query<AuthorizeInput>>,
-    state: State<AppState>,
+    mut state: State<AppState>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let parsed_uuid = Uuid::parse_str(&input.client_id).unwrap();
     // client_id が そんざいすること
@@ -151,6 +159,9 @@ async fn authorize(
     };
 
     // リクエストパラメータをセッションに保存する
+    state.session.insert("key", "value").unwrap();
+    let val = state.session.get::<String>("key").unwrap();
+    println!("session is {}", &val);
     // ログインフォームを表示する
     Ok(HtmlTemplate(template))
 }

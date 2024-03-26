@@ -20,3 +20,6 @@ axum-valid = "0.17.0"
 regex = "1.10.4"
 uuid = "1.8.0"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+axum-extra = { version = "0.9.3", features = ["typed-header"] }
+async-session = "3.0.0"
+async-redis-session = "0.2.2"
