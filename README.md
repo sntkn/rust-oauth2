@@ -6,6 +6,9 @@
 
 ```bash
 cargo watch -x run
+
+# with database configuration
+DATABASE_URL=postgres://app:pass@localhost/auth cargo watch -x run
 ```
 
 ## OAuth2
