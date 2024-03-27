@@ -83,6 +83,12 @@ pub struct AuthorizeInput {
     pub redirect_uri: String,
 }
 
+#[derive(Serialize)]
+struct AuthorizeJson {
+    client_id: String,
+    redirect_uri: String,
+}
+
 pub fn match_code(v: &str) -> Result<(), ValidationError> {
     if v == "code" {
         Ok(())
@@ -158,8 +164,15 @@ async fn authorize(
         client_id: client.id.to_string(),
     };
 
+    let json = AuthorizeJson {
+        client_id: input.client_id.to_string(),
+        redirect_uri: input.redirect_uri.to_string(),
+    };
+
+    let val = serde_json::to_string(&json).unwrap();
+
     // リクエストパラメータをセッションに保存する
-    state.session.insert("key", "value").unwrap();
+    state.session.insert("key", val).unwrap();
     let val = state.session.get::<String>("key").unwrap();
     println!("session is {}", &val);
     // ログインフォームを表示する
