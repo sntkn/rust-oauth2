@@ -10,7 +10,7 @@ use axum::{
     extract::{self, Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
 use axum_valid::Valid;
@@ -41,6 +41,7 @@ async fn main() {
         .route("/", get(hello_world))
         .route("/greet/:name", get(greet))
         .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
+        .route("/authorization", post(authorization))
         .with_state(state);
     let listner = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listner, router).await.unwrap();
@@ -86,10 +87,40 @@ struct AuthorizeInput {
     redirect_uri: String,
 }
 
+#[derive(Debug, Deserialize, Validate)]
+struct AuthorizationInput {
+    #[validate(length(min = 1, message = "Paramater 'email' can not be empty"))]
+    #[validate(email)]
+    email: String,
+
+    #[validate(length(min = 1, message = "Paramater 'password' can not be empty"))]
+    #[validate(custom(function = "validate_password"))]
+    password: String,
+}
+
 #[derive(Serialize)]
 struct AuthorizeJson {
     client_id: String,
     redirect_uri: String,
+}
+
+fn validate_password(password: &str) -> Result<(), ValidationError> {
+    let mut has_whitespace = false;
+    let mut has_upper = false;
+    let mut has_lower = false;
+    let mut has_digit = false;
+
+    for c in password.chars() {
+        has_whitespace |= c.is_whitespace();
+        has_lower |= c.is_lowercase();
+        has_upper |= c.is_uppercase();
+        has_digit |= c.is_ascii_digit();
+    }
+    if !has_whitespace && has_upper && has_lower && has_digit && password.len() >= 8 {
+        Ok(())
+    } else {
+        Err(ValidationError::new("Password Validation Failed"))
+    }
 }
 
 fn match_code(v: &str) -> Result<(), ValidationError> {
@@ -188,6 +219,7 @@ async fn authorize(
 // 認可コードを生成する
 // 認可コードとstate を保存する
 // redirect_uri に認可コードと共にリダイレクトする
+async fn authorization() -> impl IntoResponse {}
 
 #[derive(Template)]
 #[template(path = "hello.html")]
