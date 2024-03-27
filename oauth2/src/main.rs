@@ -69,18 +69,21 @@ struct HelloWorld {
 }
 
 #[derive(Debug, Deserialize, Validate)]
-pub struct AuthorizeInput {
+struct AuthorizeInput {
     #[validate(length(min = 1, message = "Paramater 'response_type' can not be empty"))]
     #[validate(custom(function = "match_code"))]
-    pub response_type: String,
+    response_type: String,
+
     #[validate(length(min = 1, message = "Paramater 'state' can not be empty"))]
-    pub state: String,
+    state: String,
+
     #[validate(length(min = 1, message = "Paramater 'client_id' can not be empty"))]
     #[validate(custom(function = "uuid"))]
-    pub client_id: String,
+    client_id: String,
+
     #[validate(length(min = 1, message = "Paramater 'redirect_uri' can not be empty"))]
     #[validate(url)]
-    pub redirect_uri: String,
+    redirect_uri: String,
 }
 
 #[derive(Serialize)]
@@ -89,7 +92,7 @@ struct AuthorizeJson {
     redirect_uri: String,
 }
 
-pub fn match_code(v: &str) -> Result<(), ValidationError> {
+fn match_code(v: &str) -> Result<(), ValidationError> {
     if v == "code" {
         Ok(())
     } else {
@@ -99,7 +102,7 @@ pub fn match_code(v: &str) -> Result<(), ValidationError> {
     }
 }
 
-pub fn uuid(id: &str) -> Result<(), ValidationError> {
+fn uuid(id: &str) -> Result<(), ValidationError> {
     // Define the regular expression pattern for UUIDv4
     let pattern =
         Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
