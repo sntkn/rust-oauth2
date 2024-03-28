@@ -7,7 +7,7 @@ use askama::Template;
 use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
 use axum::{
-    extract::{self, Query, State},
+    extract::{self, Form, Query, State},
     http::StatusCode,
     response::{Html, IntoResponse, Response},
     routing::{get, post},
@@ -219,7 +219,9 @@ async fn authorize(
 // 認可コードを生成する
 // 認可コードとstate を保存する
 // redirect_uri に認可コードと共にリダイレクトする
-async fn authorization() -> impl IntoResponse {}
+async fn authorization(Valid(Form(input)): Valid<Form<AuthorizationInput>>) -> impl IntoResponse {
+    println!("{:#?}", input);
+}
 
 #[derive(Template)]
 #[template(path = "hello.html")]
