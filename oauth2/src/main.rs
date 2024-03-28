@@ -7,11 +7,12 @@ use askama::Template;
 use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
 use axum::{
-    extract::{self, Form, Query, State},
+    debug_handler,
+    extract::{self, Query, State},
     http::StatusCode,
-    response::{Html, IntoResponse, Response},
+    response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
-    Json, Router,
+    Form, Json, Router,
 };
 use axum_valid::Valid;
 use regex::Regex;
@@ -177,8 +178,8 @@ async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse 
 }
 
 async fn authorize(
-    Valid(Query(input)): Valid<Query<AuthorizeInput>>,
     mut state: State<AppState>,
+    Valid(Query(input)): Valid<Query<AuthorizeInput>>,
 ) -> Result<impl IntoResponse, StatusCode> {
     let parsed_uuid = Uuid::parse_str(&input.client_id).unwrap();
     // client_id が そんざいすること
@@ -219,8 +220,19 @@ async fn authorize(
 // 認可コードを生成する
 // 認可コードとstate を保存する
 // redirect_uri に認可コードと共にリダイレクトする
-async fn authorization(Valid(Form(input)): Valid<Form<AuthorizationInput>>) -> impl IntoResponse {
+#[debug_handler]
+async fn authorization(
+    mut state: State<AppState>,
+    Form(input): Form<AuthorizationInput>,
+) -> impl IntoResponse {
     println!("{:#?}", input);
+    let val = state.session.get::<String>("key").unwrap();
+    if let Err(errors) = input.validate() {
+        println!("{:#?}", errors);
+        Redirect::to("/autorize")
+    } else {
+        Redirect::to("/autorize")
+    }
 }
 
 #[derive(Template)]

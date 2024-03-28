@@ -33,3 +33,7 @@ docker compose exec database psql -U app auth
 # create entity
 sea-orm-cli generate entity -u postgres://admin:admin@localhost/auth -o src/entity
 ```
+
+## 教訓
+
+- State は引数の最初に書くこと。後ろに書くと型エラーが起こる（Form で）
