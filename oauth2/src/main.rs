@@ -103,6 +103,22 @@ async fn load_session(store: &RedisSessionStore, req: Request) -> (Session, Cook
     (session, jc)
 }
 
+async fn unmarshal_from_session<T: serde::de::DeserializeOwned>(
+    session: &Session,
+    key: String,
+) -> T {
+    let sess_val = session.get::<String>(&key).unwrap_or("{}".to_string());
+    let auth_val: T = serde_json::from_str(&sess_val).unwrap();
+    auth_val
+}
+
+async fn marshal_to_session<T: Serialize>(session: &mut Session, key: String, val: &T) {
+    let v = serde_json::to_string(&val).unwrap();
+
+    // リクエストパラメータをセッションに保存する
+    session.insert(&key.to_string(), v).unwrap()
+}
+
 #[derive(Clone)]
 struct AppState {
     conn: DatabaseConnection,
@@ -253,10 +269,7 @@ async fn authorize(
 ) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
     let (mut session, jar) = load_session(&state.store, req).await;
     // セッションをまず取得して、さらにリクエストパラメータがあったら上書きする
-    let sess_val = session
-        .get::<String>("session_id")
-        .unwrap_or("{}".to_string());
-    let auth_val: AuthorizeValue = serde_json::from_str(&sess_val).unwrap();
+    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
 
     if input.response_type.is_empty() && auth_val.response_type.is_some() {
         input.response_type = auth_val.response_type.unwrap();
@@ -303,13 +316,13 @@ async fn authorize(
         response_type: input.response_type,
     };
 
-    let val = serde_json::to_string(&json).unwrap();
+    marshal_to_session(&mut session, "auth".to_string(), &json).await;
 
     // リクエストパラメータをセッションに保存する
-    session.insert("session_id", val).unwrap();
-    let val = session.get::<String>("session_id").unwrap();
+    //ssession.insert("auth", val).unwrap();
+    let val = session.get::<String>("auth").unwrap();
     println!("session is {:#?}", &val);
-    state.store.store_session(session).await;
+    state.store.store_session(session).await.unwrap();
     // ログインフォームを表示する
     Ok((jar, HtmlTemplate(template)))
 }
