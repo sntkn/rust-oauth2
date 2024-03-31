@@ -112,11 +112,20 @@ async fn unmarshal_from_session<T: serde::de::DeserializeOwned>(
     auth_val
 }
 
-async fn marshal_to_session<T: Serialize>(session: &mut Session, key: String, val: &T) {
+async fn marshal_to_session<T: Serialize>(
+    store: &RedisSessionStore,
+    session: &Session,
+    key: String,
+    val: &T,
+) {
     let v = serde_json::to_string(&val).unwrap();
 
     // リクエストパラメータをセッションに保存する
-    session.insert(&key.to_string(), v).unwrap()
+
+    let mut ss = session.clone();
+    ss.insert(&key.to_string(), v).unwrap();
+
+    store.store_session(session.clone()).await.unwrap();
 }
 
 #[derive(Clone)]
@@ -316,7 +325,7 @@ async fn authorize(
         response_type: input.response_type,
     };
 
-    marshal_to_session(&mut session, "auth".to_string(), &json).await;
+    marshal_to_session(&state.store, &session, "auth".to_string(), &json).await;
 
     // リクエストパラメータをセッションに保存する
     //ssession.insert("auth", val).unwrap();
