@@ -8,7 +8,7 @@ use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
 use axum::{
     debug_handler,
-    extract::{self, Query, Request, State},
+    extract::{self, Query, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -331,7 +331,7 @@ async fn authorization(
         println!("{:#?}", errors);
         Redirect::to("/autorize")
     } else {
-        let (session, jar) = load_session(&state.store, &headers).await;
+        let (session, _jar) = load_session(&state.store, &headers).await;
         let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
         println!("{:#?}", auth);
         Redirect::to("/autorize")
