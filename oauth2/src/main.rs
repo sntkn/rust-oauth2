@@ -8,19 +8,16 @@ use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
 use axum::{
     debug_handler,
-    extract::{self, FromRequestParts, Query, Request, State},
-    http::StatusCode,
-    middleware::{self, Next},
+    extract::{self, Query, Request, State},
+    http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
     Form, Json, Router,
 };
-use axum_extra::extract::cookie::{self, Cookie as EntityCookie, CookieJar};
-use axum_extra::{headers::Cookie, TypedHeader};
-use axum_valid::Valid;
+use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use regex::Regex;
 use sea_orm::*;
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
@@ -57,43 +54,30 @@ async fn main() {
     axum::serve(listner, router).await.unwrap();
 }
 
-async fn print_request_response(
-    State(state): State<AppState>,
-    req: Request,
-    next: Next,
-) -> Result<(CookieJar, impl IntoResponse), (StatusCode, String)> {
-    println!("================== middleware =================");
-    let session = Session::new();
-    let cookie_value = state.store.store_session(session).await.unwrap().unwrap();
-
-    let jar = CookieJar::from_headers(req.headers());
-
-    let cc = EntityCookie::new("session_id", cookie_value);
-
-    let cookie = jar.get("session_id").unwrap_or(&cc);
-
-    let j = jar.clone().add(cookie.clone());
-
-    Ok((j, next.run(req).await))
-}
-
-//pub async fn set_and_store_cookie_if_absent<B>(
+//async fn print_request_response(
 //    State(state): State<AppState>,
-//    cookies: Cookies,
-//    request: Request<B>,
-//    next: Next<B>,
-//) -> Response {
-//    if cookies.get(SESSION_COOKIE).is_none() {
-//        // handle, write to State, etc.
-//    }
+//    req: Request,
+//    next: Next,
+//) -> Result<(CookieJar, impl IntoResponse), (StatusCode, String)> {
+//    println!("================== middleware =================");
+//    let session = Session::new();
+//    let cookie_value = state.store.store_session(session).await.unwrap().unwrap();
 //
-//    next.run(request).await
+//    let jar = CookieJar::from_headers(req.headers());
+//
+//    let cc = EntityCookie::new("session_id", cookie_value);
+//
+//    let cookie = jar.get("session_id").unwrap_or(&cc);
+//
+//    let j = jar.clone().add(cookie.clone());
+//
+//    Ok((j, next.run(req).await))
 //}
 
-async fn load_session(store: &RedisSessionStore, req: Request) -> (Session, CookieJar) {
+async fn load_session(store: &RedisSessionStore, headers: &HeaderMap) -> (Session, CookieJar) {
     let session = Session::new();
     let cookie_value = store.store_session(session).await.unwrap().unwrap();
-    let jar = CookieJar::from_headers(req.headers());
+    let jar = CookieJar::from_headers(headers);
     let cc = EntityCookie::new("session_id", cookie_value);
     let cookie = jar.get("session_id").unwrap_or(&cc);
     let jc = jar.clone().add(cookie.clone());
@@ -103,13 +87,9 @@ async fn load_session(store: &RedisSessionStore, req: Request) -> (Session, Cook
     (session, jc)
 }
 
-async fn unmarshal_from_session<T: serde::de::DeserializeOwned>(
-    session: &Session,
-    key: String,
-) -> T {
+async fn unmarshal_from_session<T: DeserializeOwned>(session: &Session, key: String) -> T {
     let sess_val = session.get::<String>(&key).unwrap_or("{}".to_string());
-    let auth_val: T = serde_json::from_str(&sess_val).unwrap();
-    auth_val
+    serde_json::from_str(&sess_val).unwrap()
 }
 
 async fn marshal_to_session<T: Serialize>(
@@ -119,13 +99,11 @@ async fn marshal_to_session<T: Serialize>(
     val: &T,
 ) {
     let v = serde_json::to_string(&val).unwrap();
+    let mut session_clone = session.clone();
 
-    // リクエストパラメータをセッションに保存する
+    session_clone.insert(&key.to_string(), v).unwrap();
 
-    let mut ss = session.clone();
-    ss.insert(&key.to_string(), v).unwrap();
-
-    store.store_session(session.clone()).await.unwrap();
+    store.store_session(session_clone).await.unwrap();
 }
 
 #[derive(Clone)]
@@ -273,10 +251,10 @@ async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse 
 
 async fn authorize(
     state: State<AppState>,
+    headers: HeaderMap,
     Query(mut input): Query<AuthorizeInput>,
-    req: Request,
 ) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
-    let (mut session, jar) = load_session(&state.store, req).await;
+    let (session, jar) = load_session(&state.store, &headers).await;
     // セッションをまず取得して、さらにリクエストパラメータがあったら上書きする
     let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
 
@@ -344,16 +322,18 @@ async fn authorize(
 // redirect_uri に認可コードと共にリダイレクトする
 #[debug_handler]
 async fn authorization(
-    mut state: State<AppState>,
-    Form(input): Form<AuthorizationInput>,
+    state: State<AppState>,
+    headers: HeaderMap,
+    input: Form<AuthorizationInput>,
 ) -> impl IntoResponse {
     println!("{:#?}", input);
-    //let val = session.get::<String>("key").unwrap();
-    //println!("session is {}", &val);
     if let Err(errors) = input.validate() {
         println!("{:#?}", errors);
         Redirect::to("/autorize")
     } else {
+        let (session, jar) = load_session(&state.store, &headers).await;
+        let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
+        println!("{:#?}", auth);
         Redirect::to("/autorize")
     }
 }
