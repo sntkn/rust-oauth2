@@ -2,6 +2,9 @@ use std::env;
 mod entity;
 
 use crate::entity::oauth2_clients::Entity as OAuth2ClientEntity;
+use crate::entity::oauth2_codes::ActiveModel as OAuth2CodeModel;
+use crate::entity::oauth2_codes::Entity as OAuth2CodeEntity;
+use crate::entity::users::Entity as UserEntity;
 
 use askama::Template;
 use async_redis_session::RedisSessionStore;
@@ -15,6 +18,7 @@ use axum::{
     Form, Json, Router,
 };
 use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
+use chrono::{Duration, Local};
 use regex::Regex;
 use sea_orm::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -325,16 +329,43 @@ async fn authorization(
     state: State<AppState>,
     headers: HeaderMap,
     input: Form<AuthorizationInput>,
-) -> impl IntoResponse {
+) -> Result<impl IntoResponse, StatusCode> {
     println!("{:#?}", input);
     if let Err(errors) = input.validate() {
         println!("{:#?}", errors);
-        Redirect::to("/autorize")
+        Ok(Redirect::to("/autorize"))
     } else {
         let (session, _jar) = load_session(&state.store, &headers).await;
         let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
-        println!("{:#?}", auth);
-        Redirect::to("/autorize")
+        let user = UserEntity::find()
+            .filter(crate::entity::users::Column::Email.eq(input.email.to_string()))
+            .one(&state.conn)
+            .await
+            .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+            .ok_or(StatusCode::FORBIDDEN)?; // TODO: redirect to authorize
+        if user.password != input.password {
+            return Err(StatusCode::FORBIDDEN); // TODO: redirect to authorize
+        }
+        let code = Uuid::new_v4();
+        let datetime = Local::now().naive_local().into();
+        let expires_at = Local::now().naive_local() + Duration::hours(1);
+        let client_id = Uuid::parse_str(&auth.client_id.unwrap()).unwrap();
+        let oauth2_code = OAuth2CodeModel {
+            code: ActiveValue::Set(code.to_string()),
+            user_id: ActiveValue::set(user.id),
+            client_id: ActiveValue::set(client_id),
+            expires_at: ActiveValue::set(expires_at.into()),
+            redirect_uri: ActiveValue::set(auth.redirect_uri.unwrap()),
+            scope: ActiveValue::set("*".to_string()),
+            revoked_at: ActiveValue::set(None),
+            created_at: ActiveValue::set(datetime),
+            updated_at: ActiveValue::set(datetime),
+        };
+
+        oauth2_code.insert(&state.conn).await.unwrap(); // TODO: check
+
+        //println!("{:#?}", auth);
+        Ok(Redirect::to("/autorize"))
     }
 }
 
