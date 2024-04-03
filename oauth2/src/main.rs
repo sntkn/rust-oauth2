@@ -1,12 +1,6 @@
 use std::env;
 mod entity;
-
-use crate::entity::oauth2_clients::Entity as OAuth2ClientEntity;
-use crate::entity::oauth2_codes::ActiveModel as OAuth2CodeModel;
-use crate::entity::oauth2_codes::Entity as OAuth2CodeEntity;
-use crate::entity::users::Entity as UserEntity;
-
-use bcrypt::{hash, verify, DEFAULT_COST};
+mod repository;
 
 use askama::Template;
 use async_redis_session::RedisSessionStore;
@@ -17,9 +11,10 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
-    Form, Json, Router,
+    Form, Router,
 };
 use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
+use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{Duration, Local};
 use regex::Regex;
 use sea_orm::*;
@@ -44,11 +39,11 @@ async fn main() {
     //let session = store.load_session(cookie_value).await.unwrap().unwrap();
     //let cookie = store.store_session(session).await.unwrap().unwrap();
     //let t = SessionToken(cookie);
+    let repo = repository::Repository::new(conn.clone());
 
-    let state = AppState { conn, store };
+    let state = AppState { store, repo };
 
     let router = Router::new()
-        .route("/", get(hello_world))
         .route("/greet/:name", get(greet))
         .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization))
@@ -115,20 +110,9 @@ async fn marshal_to_session<T: Serialize>(
 
 #[derive(Clone)]
 struct AppState {
-    conn: DatabaseConnection,
     //session: SessionToken,
     store: RedisSessionStore,
-}
-
-async fn hello_world(state: State<AppState>) -> Result<impl IntoResponse, StatusCode> {
-    let client = OAuth2ClientEntity::find().one(&state.conn).await.unwrap();
-
-    match client {
-        Some(client) => Ok(Json(HelloWorld {
-            text: client.name.to_string(),
-        })),
-        None => Err(StatusCode::NOT_FOUND),
-    }
+    repo: repository::Repository,
 }
 
 #[derive(Serialize)]
@@ -286,8 +270,9 @@ async fn authorize(
 
     let parsed_uuid = Uuid::parse_str(&input.client_id).unwrap();
     // client_id が そんざいすること
-    let client = OAuth2ClientEntity::find_by_id(parsed_uuid)
-        .one(&state.conn)
+    let client = &state
+        .repo
+        .find_client(parsed_uuid)
         .await
         .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
         .ok_or(StatusCode::FORBIDDEN)?;
@@ -340,9 +325,9 @@ async fn authorization(
     } else {
         let (session, _jar) = load_session(&state.store, &headers).await;
         let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
-        let user = UserEntity::find()
-            .filter(crate::entity::users::Column::Email.eq(input.email.to_string()))
-            .one(&state.conn)
+        let user = &state
+            .repo
+            .find_user_by_email(input.email.to_string())
             .await
             .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
             .ok_or(StatusCode::FORBIDDEN)?; // TODO: redirect to authorize
@@ -357,19 +342,17 @@ async fn authorization(
         let expires_at = Local::now().naive_local() + Duration::hours(1);
         let client_id = Uuid::parse_str(&auth.client_id.unwrap()).unwrap();
         let redirect_uri = auth.redirect_uri.unwrap();
-        let oauth2_code = OAuth2CodeModel {
-            code: ActiveValue::Set(code.to_string()),
-            user_id: ActiveValue::set(user.id),
-            client_id: ActiveValue::set(client_id),
-            expires_at: ActiveValue::set(expires_at.into()),
-            redirect_uri: ActiveValue::set(redirect_uri.clone()),
-            scope: ActiveValue::set("*".to_string()),
-            revoked_at: ActiveValue::set(None),
-            created_at: ActiveValue::set(datetime),
-            updated_at: ActiveValue::set(datetime),
+        let params = repository::CreateCodeParams {
+            code: code.to_string(),
+            user_id: user.id,
+            client_id,
+            expires_at: expires_at.into(),
+            redirect_uri: redirect_uri.clone(),
+            created_at: datetime,
+            updated_at: datetime,
         };
 
-        oauth2_code.insert(&state.conn).await.unwrap(); // TODO: check
+        let _ = &state.repo.create_code(params).await.unwrap(); // TODO: check
 
         let qs = vec![("code", code.to_string())];
         let url = Url::parse_with_params(&redirect_uri, qs).unwrap();
