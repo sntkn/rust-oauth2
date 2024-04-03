@@ -6,6 +6,8 @@ use crate::entity::oauth2_codes::ActiveModel as OAuth2CodeModel;
 use crate::entity::oauth2_codes::Entity as OAuth2CodeEntity;
 use crate::entity::users::Entity as UserEntity;
 
+use bcrypt::{hash, verify, DEFAULT_COST};
+
 use askama::Template;
 use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
@@ -343,7 +345,10 @@ async fn authorization(
             .await
             .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
             .ok_or(StatusCode::FORBIDDEN)?; // TODO: redirect to authorize
-        if user.password != input.password {
+
+        if !verify(&input.password, &user.password).unwrap() {
+            let pp = hash(&input.password, DEFAULT_COST).unwrap();
+            println!("password: {}, {}", pp, user.password);
             return Err(StatusCode::FORBIDDEN); // TODO: redirect to authorize
         }
         let code = Uuid::new_v4();
