@@ -25,6 +25,7 @@ use regex::Regex;
 use sea_orm::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
+use url::Url;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
@@ -355,12 +356,13 @@ async fn authorization(
         let datetime = Local::now().naive_local().into();
         let expires_at = Local::now().naive_local() + Duration::hours(1);
         let client_id = Uuid::parse_str(&auth.client_id.unwrap()).unwrap();
+        let redirect_uri = auth.redirect_uri.unwrap();
         let oauth2_code = OAuth2CodeModel {
             code: ActiveValue::Set(code.to_string()),
             user_id: ActiveValue::set(user.id),
             client_id: ActiveValue::set(client_id),
             expires_at: ActiveValue::set(expires_at.into()),
-            redirect_uri: ActiveValue::set(auth.redirect_uri.unwrap()),
+            redirect_uri: ActiveValue::set(redirect_uri.clone()),
             scope: ActiveValue::set("*".to_string()),
             revoked_at: ActiveValue::set(None),
             created_at: ActiveValue::set(datetime),
@@ -369,8 +371,11 @@ async fn authorization(
 
         oauth2_code.insert(&state.conn).await.unwrap(); // TODO: check
 
+        let qs = vec![("code", code.to_string())];
+        let url = Url::parse_with_params(&redirect_uri, qs).unwrap();
+
         //println!("{:#?}", auth);
-        Ok(Redirect::to("/autorize"))
+        Ok(Redirect::to(url.as_ref()))
     }
 }
 
