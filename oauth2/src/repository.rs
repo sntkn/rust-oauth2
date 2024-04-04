@@ -19,8 +19,9 @@ pub struct Repository {
 }
 
 impl Repository {
-    pub fn new(db: DbConn) -> Repository {
-        Repository { db }
+    pub async fn new(db_url: String) -> Result<Repository, DbErr> {
+        let conn: DatabaseConnection = Database::connect(db_url).await?;
+        Ok(Repository { db: conn })
     }
 
     pub async fn find_client(&self, id: Uuid) -> Result<Option<oauth2_clients::Model>, DbErr> {
@@ -37,7 +38,7 @@ impl Repository {
     pub async fn create_code(
         &self,
         payload: CreateCodeParams,
-    ) -> Result<(oauth2_codes::Model), DbErr> {
+    ) -> Result<oauth2_codes::Model, DbErr> {
         let oauth2_code = oauth2_codes::ActiveModel {
             code: ActiveValue::set(payload.code),
             user_id: ActiveValue::set(payload.user_id),

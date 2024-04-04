@@ -7,7 +7,7 @@ use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
 use axum::{
     debug_handler,
-    extract::{self, Query, State},
+    extract::{Query, State},
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -17,7 +17,6 @@ use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{Duration, Local};
 use regex::Regex;
-use sea_orm::*;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use url::Url;
@@ -30,21 +29,15 @@ async fn main() {
         .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "debug".into()))
         .with(tracing_subscriber::fmt::layer())
         .init();
-    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-    let conn: DatabaseConnection = Database::connect(db_url).await.unwrap();
 
     let store = RedisSessionStore::new("redis://localhost:6379/").unwrap();
-    //let session = Session::new();
-    //let cookie_value = store.store_session(session).await.unwrap().unwrap();
-    //let session = store.load_session(cookie_value).await.unwrap().unwrap();
-    //let cookie = store.store_session(session).await.unwrap().unwrap();
-    //let t = SessionToken(cookie);
-    let repo = repository::Repository::new(conn.clone());
+
+    let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
+    let repo = repository::Repository::new(db_url).await.unwrap();
 
     let state = AppState { store, repo };
 
     let router = Router::new()
-        .route("/greet/:name", get(greet))
         .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization))
         //.layer(middleware::from_fn_with_state(
@@ -78,14 +71,19 @@ async fn main() {
 
 async fn load_session(store: &RedisSessionStore, headers: &HeaderMap) -> (Session, CookieJar) {
     let session = Session::new();
-    let cookie_value = store.store_session(session).await.unwrap().unwrap();
     let jar = CookieJar::from_headers(headers);
-    let cc = EntityCookie::new("session_id", cookie_value);
-    let cookie = jar.get("session_id").unwrap_or(&cc);
-    let jc = jar.clone().add(cookie.clone());
-    let cv = cookie.value();
-    println!("cookie: {:?}", cv);
-    let session = store.load_session(cv.to_string()).await.unwrap().unwrap();
+    let cookie = {
+        let cookie_value = store.store_session(session).await.unwrap().unwrap();
+        let cookie_entity = EntityCookie::new("session_id", cookie_value);
+        let cookie = jar.get("session_id").unwrap_or(&cookie_entity);
+        cookie.clone()
+    };
+    let jc = jar.add(cookie.clone());
+    let session = store
+        .load_session(cookie.value().to_string())
+        .await
+        .unwrap()
+        .unwrap();
     (session, jc)
 }
 
@@ -113,11 +111,6 @@ struct AppState {
     //session: SessionToken,
     store: RedisSessionStore,
     repo: repository::Repository,
-}
-
-#[derive(Serialize)]
-struct HelloWorld {
-    text: String,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -234,11 +227,6 @@ fn uuid(id: &str) -> Result<(), ValidationError> {
 //        Ok(ValidatedForm(value))
 //    }
 //}
-
-async fn greet(extract::Path(name): extract::Path<String>) -> impl IntoResponse {
-    let template = HelloTemplate { name };
-    HtmlTemplate(template)
-}
 
 async fn authorize(
     state: State<AppState>,
