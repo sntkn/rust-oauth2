@@ -1,0 +1,4 @@
+  // extendsに'next/babel'を追記する
+{
+  "extends": ["next", "next/core-web-vitals", "next/babel"]
+}
