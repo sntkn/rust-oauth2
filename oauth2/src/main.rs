@@ -40,6 +40,7 @@ async fn main() {
     let router = Router::new()
         .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization))
+        .route("/token", post(create_token))
         //.layer(middleware::from_fn_with_state(
         //    state.clone(),
         //    print_request_response,
@@ -78,13 +79,13 @@ async fn load_session(store: &RedisSessionStore, headers: &HeaderMap) -> (Sessio
         let cookie = jar.get("session_id").unwrap_or(&cookie_entity);
         cookie.clone()
     };
-    let jc = jar.add(cookie.clone());
+    let jar = jar.add(cookie.clone());
     let session = store
         .load_session(cookie.value().to_string())
         .await
         .unwrap()
         .unwrap();
-    (session, jc)
+    (session, jar)
 }
 
 async fn unmarshal_from_session<T: DeserializeOwned>(session: &Session, key: String) -> T {
@@ -151,6 +152,21 @@ struct AuthorizationInput {
     #[validate(length(min = 1, message = "Paramater 'password' can not be empty"))]
     #[validate(custom(function = "validate_password"))]
     password: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+struct CreateTokenInput {
+    #[serde(default)]
+    #[validate(custom(function = "uuid"))]
+    code: String,
+
+    #[serde(default)]
+    #[validate(length(min = 1, message = "Paramater 'grant_type' can not be empty"))]
+    grant_type: String,
+
+    #[serde(default)]
+    #[validate(length(min = 1, message = "Paramater 'refresh_token' can not be empty"))]
+    refresh_token: String,
 }
 
 #[derive(Serialize)]
@@ -347,6 +363,33 @@ async fn authorization(
 
         //println!("{:#?}", auth);
         Ok(Redirect::to(url.as_ref()))
+    }
+}
+
+#[debug_handler]
+async fn create_token(
+    state: State<AppState>,
+    headers: HeaderMap,
+    Query(mut input): Query<CreateTokenInput>,
+) -> Result<impl IntoResponse, StatusCode> {
+    // issue token
+    if input.grant_type == "authorization_code" {
+        if input.code.is_empty() {
+            return Err(StatusCode::BAD_REQUEST);
+        }
+        let code = Uuid::parse_str(&input.code).unwrap();
+        // コードの存在チェック
+        // コードの有効期限チェック
+        // トークン生成
+        // トークン登録
+        // コード無効化
+        // トークン返却
+        return Ok(());
+    // refresh token
+    } else if input.grant_type == "refresh_token" {
+        return Err(StatusCode::BAD_REQUEST);
+    } else {
+        return Err(StatusCode::BAD_REQUEST);
     }
 }
 
