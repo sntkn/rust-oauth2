@@ -15,7 +15,8 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use bcrypt::{hash, verify, DEFAULT_COST};
-use chrono::{Duration, Local};
+use chrono::{Duration, Local, NaiveDateTime};
+use jsonwebtoken::{encode, errors::Error as JwtError, EncodingKey, Header};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -369,8 +370,7 @@ async fn authorization(
 #[debug_handler]
 async fn create_token(
     state: State<AppState>,
-    headers: HeaderMap,
-    Query(mut input): Query<CreateTokenInput>,
+    Query(input): Query<CreateTokenInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
     // issue token
     if input.grant_type == "authorization_code" {
@@ -389,21 +389,29 @@ async fn create_token(
         if code.expires_at.unwrap() < Local::now().naive_local() {
             return Err(StatusCode::FORBIDDEN);
         }
-        // トークン生成(JWT)
-        let token = "";
         // トークン登録
+        let token = Uuid::new_v4();
         let expires_at = Local::now().naive_local() + Duration::minutes(10);
-        let datetime = Local::now().naive_local().into();
-
+        let now = Local::now().naive_local().into();
         let params = repository::CreateTokenParams {
             access_token: token.to_string(),
             user_id: code.user_id,
             client_id: code.client_id,
             expires_at: expires_at.into(),
-            created_at: datetime,
-            updated_at: datetime,
+            created_at: now,
+            updated_at: now,
         };
-        let token = &state.repo.create_token(params).await.unwrap();
+        let _ = &state.repo.create_token(params).await.unwrap(); // TODO
+
+        // トークン生成(JWT)
+        let token_claims = TokenClaims {
+            sub: token,
+            jti: code.user_id,
+            exp: expires_at,
+            iat: now.unwrap(),
+        };
+        let access_jwt = generate_token(&token_claims, b"some-secret").unwrap();
+
         // コード無効化
         // トークン返却
         return Ok(());
@@ -413,6 +421,19 @@ async fn create_token(
     } else {
         return Err(StatusCode::BAD_REQUEST);
     }
+}
+
+#[derive(Serialize)]
+struct TokenClaims {
+    sub: Uuid, // access_token
+    jti: Uuid, // user_id
+    exp: NaiveDateTime,
+    iat: NaiveDateTime,
+}
+
+fn generate_token<T: Serialize>(claims: &T, secret: &[u8]) -> Result<String, JwtError> {
+    let encoding_key = EncodingKey::from_secret(secret);
+    encode(&Header::default(), claims, &encoding_key)
 }
 
 #[derive(Template)]
