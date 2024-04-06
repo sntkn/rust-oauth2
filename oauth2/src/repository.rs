@@ -53,4 +53,8 @@ impl Repository {
 
         oauth2_code.insert(&self.db).await
     }
+
+    pub async fn find_code(&self, code: Uuid) -> Result<Option<oauth2_codes::Model>, DbErr> {
+        oauth2_codes::Entity::find_by_id(code).one(&self.db).await
+    }
 }

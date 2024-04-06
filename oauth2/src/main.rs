@@ -379,6 +379,12 @@ async fn create_token(
         }
         let code = Uuid::parse_str(&input.code).unwrap();
         // コードの存在チェック
+        let code = &state
+            .repo
+            .find_code(code)
+            .await
+            .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+            .ok_or(StatusCode::FORBIDDEN)?;
         // コードの有効期限チェック
         // トークン生成
         // トークン登録
