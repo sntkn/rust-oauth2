@@ -1,4 +1,4 @@
-use crate::entity::{oauth2_clients, oauth2_codes, oauth2_tokens, users};
+use crate::entity::{oauth2_clients, oauth2_codes, oauth2_refresh_tokens, oauth2_tokens, users};
 use chrono::NaiveDateTime;
 use sea_orm::*;
 use uuid::Uuid;
@@ -17,6 +17,14 @@ pub struct CreateTokenParams {
     pub access_token: String,
     pub user_id: Uuid,
     pub client_id: Uuid,
+    pub expires_at: Option<NaiveDateTime>,
+    pub created_at: Option<NaiveDateTime>,
+    pub updated_at: Option<NaiveDateTime>,
+}
+
+pub struct CreateRefreshTokenParams {
+    pub refresh_token: String,
+    pub access_token: String,
     pub expires_at: Option<NaiveDateTime>,
     pub created_at: Option<NaiveDateTime>,
     pub updated_at: Option<NaiveDateTime>,
@@ -83,5 +91,20 @@ impl Repository {
         };
 
         oauth2_token.insert(&self.db).await
+    }
+
+    pub async fn create_refresh_token(
+        &self,
+        payload: CreateRefreshTokenParams,
+    ) -> Result<oauth2_refresh_tokens::Model, DbErr> {
+        let oauth2_refresh_token = oauth2_refresh_tokens::ActiveModel {
+            refresh_token: ActiveValue::set(payload.refresh_token),
+            access_token: ActiveValue::set(payload.access_token),
+            expires_at: ActiveValue::set(payload.expires_at),
+            created_at: ActiveValue::set(payload.created_at),
+            updated_at: ActiveValue::set(payload.updated_at),
+        };
+
+        oauth2_refresh_token.insert(&self.db).await
     }
 }

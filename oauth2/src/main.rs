@@ -413,6 +413,19 @@ async fn create_token(
         let access_jwt = generate_token(&token_claims, b"some-secret").unwrap();
 
         // コード無効化
+        // リフレッシュトークン生成
+        let expires_at = Local::now().naive_local() + Duration::days(90);
+        let now = Local::now().naive_local().into();
+        let refresh_token = Uuid::new_v4();
+        let params = repository::CreateRefreshTokenParams {
+            refresh_token: refresh_token.to_string(),
+            access_token: token.to_string(),
+            expires_at: expires_at.into(),
+            created_at: now,
+            updated_at: now,
+        };
+        let _ = &state.repo.create_refresh_token(params).await.unwrap(); // TODO
+
         // トークン返却
         return Ok(());
     // refresh token
