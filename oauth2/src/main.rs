@@ -386,8 +386,24 @@ async fn create_token(
             .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
             .ok_or(StatusCode::FORBIDDEN)?;
         // コードの有効期限チェック
-        // トークン生成
+        if code.expires_at.unwrap() < Local::now().naive_local() {
+            return Err(StatusCode::FORBIDDEN);
+        }
+        // トークン生成(JWT)
+        let token = "";
         // トークン登録
+        let expires_at = Local::now().naive_local() + Duration::minutes(10);
+        let datetime = Local::now().naive_local().into();
+
+        let params = repository::CreateTokenParams {
+            access_token: token.to_string(),
+            user_id: code.user_id,
+            client_id: code.client_id,
+            expires_at: expires_at.into(),
+            created_at: datetime,
+            updated_at: datetime,
+        };
+        let token = &state.repo.create_token(params).await.unwrap();
         // コード無効化
         // トークン返却
         return Ok(());

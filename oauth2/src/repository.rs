@@ -1,4 +1,4 @@
-use crate::entity::{oauth2_clients, oauth2_codes, users};
+use crate::entity::{oauth2_clients, oauth2_codes, oauth2_tokens, users};
 use chrono::NaiveDateTime;
 use sea_orm::*;
 use uuid::Uuid;
@@ -9,6 +9,15 @@ pub struct CreateCodeParams {
     pub client_id: Uuid,
     pub expires_at: Option<NaiveDateTime>,
     pub redirect_uri: String,
+    pub created_at: Option<NaiveDateTime>,
+    pub updated_at: Option<NaiveDateTime>,
+}
+
+pub struct CreateTokenParams {
+    pub access_token: String,
+    pub user_id: Uuid,
+    pub client_id: Uuid,
+    pub expires_at: Option<NaiveDateTime>,
     pub created_at: Option<NaiveDateTime>,
     pub updated_at: Option<NaiveDateTime>,
 }
@@ -56,5 +65,23 @@ impl Repository {
 
     pub async fn find_code(&self, code: Uuid) -> Result<Option<oauth2_codes::Model>, DbErr> {
         oauth2_codes::Entity::find_by_id(code).one(&self.db).await
+    }
+
+    pub async fn create_token(
+        &self,
+        payload: CreateTokenParams,
+    ) -> Result<oauth2_tokens::Model, DbErr> {
+        let oauth2_token = oauth2_tokens::ActiveModel {
+            access_token: ActiveValue::set(payload.access_token),
+            user_id: ActiveValue::set(payload.user_id),
+            client_id: ActiveValue::set(payload.client_id),
+            scope: ActiveValue::set("*".to_string()),
+            revoked_at: ActiveValue::set(None),
+            expires_at: ActiveValue::set(payload.expires_at),
+            created_at: ActiveValue::set(payload.created_at),
+            updated_at: ActiveValue::set(payload.updated_at),
+        };
+
+        oauth2_token.insert(&self.db).await
     }
 }
