@@ -4,7 +4,7 @@ type Result = {
 
 async function getData(code: string): Promise<Result> {
   // 認可コードが取得できた場合、アクセストークンの取得リクエストを送信
-  const res = await fetch('http://localhost:3000/api/fetchToken', {
+  const res = await fetch('http://localhost:8000/api/fetchToken', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
