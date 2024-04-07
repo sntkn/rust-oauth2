@@ -1,5 +1,5 @@
 use crate::entity::{oauth2_clients, oauth2_codes, oauth2_refresh_tokens, oauth2_tokens, users};
-use chrono::NaiveDateTime;
+use chrono::{Local, NaiveDateTime};
 use sea_orm::*;
 use uuid::Uuid;
 
@@ -106,5 +106,16 @@ impl Repository {
         };
 
         oauth2_refresh_token.insert(&self.db).await
+    }
+
+    pub async fn revoke_code(&self, code: Uuid) -> Result<oauth2_codes::Model, DbErr> {
+        let mut oauth2_code = oauth2_codes::Entity::find_by_id(code)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| DbErr::Custom("Code not found.".to_owned()))?
+            .into_active_model();
+
+        oauth2_code.revoked_at = Set(Some(Local::now().naive_local()));
+        oauth2_code.update(&self.db).await
     }
 }

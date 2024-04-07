@@ -11,7 +11,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
-    Form, Router,
+    Form, Json, Router,
 };
 use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use bcrypt::{hash, verify, DEFAULT_COST};
@@ -391,13 +391,13 @@ async fn create_token(
         }
         // トークン登録
         let token = Uuid::new_v4();
-        let expires_at = Local::now().naive_local() + Duration::minutes(10);
+        let token_expires_at = Local::now().naive_local() + Duration::minutes(10);
         let now = Local::now().naive_local().into();
         let params = repository::CreateTokenParams {
             access_token: token.to_string(),
             user_id: code.user_id,
             client_id: code.client_id,
-            expires_at: expires_at.into(),
+            expires_at: token_expires_at.into(),
             created_at: now,
             updated_at: now,
         };
@@ -407,12 +407,15 @@ async fn create_token(
         let token_claims = TokenClaims {
             sub: token,
             jti: code.user_id,
-            exp: expires_at,
+            exp: token_expires_at,
             iat: now.unwrap(),
         };
         let access_jwt = generate_token(&token_claims, b"some-secret").unwrap();
 
         // コード無効化
+        let code = Uuid::parse_str(&code.code).unwrap();
+        let _ = &state.repo.revoke_code(code).await.unwrap();
+
         // リフレッシュトークン生成
         let expires_at = Local::now().naive_local() + Duration::days(90);
         let now = Local::now().naive_local().into();
@@ -427,7 +430,13 @@ async fn create_token(
         let _ = &state.repo.create_refresh_token(params).await.unwrap(); // TODO
 
         // トークン返却
-        return Ok(());
+        let response = TokenResponse {
+            access_token: access_jwt,
+            refresh_token: refresh_token.to_string(),
+            token_type: "Bearer".to_string(),
+            expires_in: token_expires_at.and_utc().timestamp(),
+        };
+        Ok(Json(response))
     // refresh token
     } else if input.grant_type == "refresh_token" {
         return Err(StatusCode::BAD_REQUEST);
@@ -442,6 +451,14 @@ struct TokenClaims {
     jti: Uuid, // user_id
     exp: NaiveDateTime,
     iat: NaiveDateTime,
+}
+
+#[derive(Serialize)]
+struct TokenResponse {
+    access_token: String,
+    refresh_token: String,
+    token_type: String,
+    expires_in: i64,
 }
 
 fn generate_token<T: Serialize>(claims: &T, secret: &[u8]) -> Result<String, JwtError> {
