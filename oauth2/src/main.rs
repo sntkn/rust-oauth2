@@ -370,7 +370,7 @@ async fn authorization(
 #[debug_handler]
 async fn create_token(
     state: State<AppState>,
-    Query(input): Query<CreateTokenInput>,
+    input: Json<CreateTokenInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
     // issue token
     if input.grant_type == "authorization_code" {
