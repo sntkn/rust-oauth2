@@ -71,7 +71,7 @@ impl Repository {
         oauth2_code.insert(&self.db).await
     }
 
-    pub async fn find_code(&self, code: Uuid) -> Result<Option<oauth2_codes::Model>, DbErr> {
+    pub async fn find_code(&self, code: String) -> Result<Option<oauth2_codes::Model>, DbErr> {
         oauth2_codes::Entity::find_by_id(code).one(&self.db).await
     }
 
@@ -108,7 +108,7 @@ impl Repository {
         oauth2_refresh_token.insert(&self.db).await
     }
 
-    pub async fn revoke_code(&self, code: Uuid) -> Result<oauth2_codes::Model, DbErr> {
+    pub async fn revoke_code(&self, code: String) -> Result<oauth2_codes::Model, DbErr> {
         let mut oauth2_code = oauth2_codes::Entity::find_by_id(code)
             .one(&self.db)
             .await?

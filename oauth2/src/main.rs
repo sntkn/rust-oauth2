@@ -17,6 +17,7 @@ use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{Duration, Local, NaiveDateTime};
 use jsonwebtoken::{encode, errors::Error as JwtError, EncodingKey, Header};
+use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
@@ -342,13 +343,13 @@ async fn authorization(
             println!("password: {}, {}", pp, user.password);
             return Err(StatusCode::FORBIDDEN); // TODO: redirect to authorize
         }
-        let code = Uuid::new_v4();
+        let code = generate_random_string(32);
         let datetime = Local::now().naive_local().into();
         let expires_at = Local::now().naive_local() + Duration::hours(1);
         let client_id = Uuid::parse_str(&auth.client_id.unwrap()).unwrap();
         let redirect_uri = auth.redirect_uri.unwrap();
         let params = repository::CreateCodeParams {
-            code: code.to_string(),
+            code: code.clone(),
             user_id: user.id,
             client_id,
             expires_at: expires_at.into(),
@@ -377,11 +378,10 @@ async fn create_token(
         if input.code.is_empty() {
             return Err(StatusCode::BAD_REQUEST);
         }
-        let code = Uuid::parse_str(&input.code).unwrap();
         // コードの存在チェック
         let code = &state
             .repo
-            .find_code(code)
+            .find_code(input.code.to_string())
             .await
             .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
             .ok_or(StatusCode::FORBIDDEN)?;
@@ -390,7 +390,7 @@ async fn create_token(
             return Err(StatusCode::FORBIDDEN);
         }
         // トークン登録
-        let token = Uuid::new_v4();
+        let token = generate_random_string(32);
         let token_expires_at = Local::now().naive_local() + Duration::minutes(10);
         let now = Local::now().naive_local().into();
         let params = repository::CreateTokenParams {
@@ -405,7 +405,7 @@ async fn create_token(
 
         // トークン生成(JWT)
         let token_claims = TokenClaims {
-            sub: token,
+            sub: token.to_string(),
             jti: code.user_id,
             exp: token_expires_at,
             iat: now.unwrap(),
@@ -413,13 +413,12 @@ async fn create_token(
         let access_jwt = generate_token(&token_claims, b"some-secret").unwrap();
 
         // コード無効化
-        let code = Uuid::parse_str(&code.code).unwrap();
-        let _ = &state.repo.revoke_code(code).await.unwrap();
+        let _ = &state.repo.revoke_code(code.code.to_string()).await.unwrap();
 
         // リフレッシュトークン生成
         let expires_at = Local::now().naive_local() + Duration::days(90);
         let now = Local::now().naive_local().into();
-        let refresh_token = Uuid::new_v4();
+        let refresh_token = generate_random_string(64);
         let params = repository::CreateRefreshTokenParams {
             refresh_token: refresh_token.to_string(),
             access_token: token.to_string(),
@@ -447,8 +446,8 @@ async fn create_token(
 
 #[derive(Serialize)]
 struct TokenClaims {
-    sub: Uuid, // access_token
-    jti: Uuid, // user_id
+    sub: String, // access_token
+    jti: Uuid,   // user_id
     exp: NaiveDateTime,
     iat: NaiveDateTime,
 }
@@ -464,6 +463,14 @@ struct TokenResponse {
 fn generate_token<T: Serialize>(claims: &T, secret: &[u8]) -> Result<String, JwtError> {
     let encoding_key = EncodingKey::from_secret(secret);
     encode(&Header::default(), claims, &encoding_key)
+}
+
+fn generate_random_string(len: usize) -> String {
+    let random_bytes: Vec<u8> = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(len)
+        .collect();
+    String::from_utf8(random_bytes).unwrap()
 }
 
 #[derive(Template)]
