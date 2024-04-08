@@ -411,8 +411,8 @@ async fn create_token(
         let token_claims = TokenClaims {
             sub: token.to_string(),
             jti: code.user_id,
-            exp: token_expires_at,
-            iat: now.unwrap(),
+            exp: token_expires_at.and_utc().timestamp(),
+            iat: now.unwrap().and_utc().timestamp(),
         };
         let access_jwt = generate_token(&token_claims, b"some-secret").unwrap();
 
@@ -457,7 +457,7 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
     // JWTを解析
     let decoding_key = DecodingKey::from_secret(b"some-secret");
     let token_message =
-        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256));
+        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256)).unwrap();
     println!("decoded is {:#?}", token_message);
 
     // JWTの有効期限をチェック
@@ -465,15 +465,16 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
     // アクセストークンの有効期限、有効チェック
     // ユーザー情報取得
     // ユーザー情報返却
-    Ok(())
+
+    Ok(Json("{}"))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 struct TokenClaims {
     sub: String, // access_token
     jti: Uuid,   // user_id
-    exp: NaiveDateTime,
-    iat: NaiveDateTime,
+    exp: i64,
+    iat: i64,
 }
 
 #[derive(Serialize)]
