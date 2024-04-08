@@ -43,6 +43,7 @@ async fn main() {
         .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization))
         .route("/token", post(create_token))
+        .route("/me", get(me))
         //.layer(middleware::from_fn_with_state(
         //    state.clone(),
         //    print_request_response,
@@ -442,6 +443,17 @@ async fn create_token(
     } else {
         return Err(StatusCode::BAD_REQUEST);
     }
+}
+
+async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoResponse, StatusCode> {
+    // Authorization ヘッダからアクセストークン取得
+    // JWTを解析
+    // JWTの有効期限をチェック
+    // アクセストークン取得（token and user_id）
+    // アクセストークンの有効期限、有効チェック
+    // ユーザー情報取得
+    // ユーザー情報返却
+    Ok(())
 }
 
 #[derive(Serialize)]
