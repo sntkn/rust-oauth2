@@ -1,8 +1,10 @@
-type Result = {
-  result: boolean
+type Token = {
+  access_token: string
+  refresh_token: string
+  expires_in: number
 }
 
-async function getData(code: string): Promise<Result> {
+async function getData(code: string): Promise<Token> {
   // 認可コードが取得できた場合、アクセストークンの取得リクエストを送信
   const res = await fetch('http://localhost:8000/api/fetchToken', {
     method: 'POST',
@@ -23,7 +25,7 @@ export default async function Callback({
 }) {
   // @see https://nextjs.org/docs/app/api-reference/file-conventions/page#searchparams-optional
   const code = searchParams.code
-  const res = await getData(code)
+  const res: Token = await getData(code)
   console.log(res)
 
   return (

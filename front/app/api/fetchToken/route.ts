@@ -2,9 +2,10 @@ import { NextResponse, NextRequest } from 'next/server';
 //import { cookies } from 'next/headers'
 
 type Token = {
-  accessToken: string;
-  refreshToken: string;
-  expiry: number;
+  access_token: string
+  refresh_token: string
+  token_type: string
+  expires_in: number
 }
 
 export async function POST(req: NextRequest) {
@@ -27,9 +28,20 @@ export async function POST(req: NextRequest) {
       code,
     })
   })
-  console.log(res)
+
   const token: Token = await res.json()
   console.log(token)
+
+  // me (あとでどかす)
+  const res2 = await fetch('http://localhost:3000/me', {
+    method: 'GET',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token.access_token}`
+    },
+  })
+  const user = await res2.json()
+  console.log(user)
 
   // TODO: setcookie
   //cookies().set('access_token', token.accessToken)
