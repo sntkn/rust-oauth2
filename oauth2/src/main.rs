@@ -16,7 +16,10 @@ use axum::{
 use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use bcrypt::{hash, verify, DEFAULT_COST};
 use chrono::{Duration, Local, NaiveDateTime};
-use jsonwebtoken::{encode, errors::Error as JwtError, EncodingKey, Header};
+use jsonwebtoken::{
+    decode, encode, errors::Error as JwtError, Algorithm, DecodingKey, EncodingKey, Header,
+    Validation,
+};
 use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -447,7 +450,16 @@ async fn create_token(
 
 async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoResponse, StatusCode> {
     // Authorization ヘッダからアクセストークン取得
+    let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
+    let token = authorization.split(' ').last().unwrap();
+    println!("token is {}", token);
+
     // JWTを解析
+    let decoding_key = DecodingKey::from_secret(b"some-secret");
+    let token_message =
+        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256));
+    println!("decoded is {:#?}", token_message);
+
     // JWTの有効期限をチェック
     // アクセストークン取得（token and user_id）
     // アクセストークンの有効期限、有効チェック
@@ -456,7 +468,7 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
     Ok(())
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize, Debug)]
 struct TokenClaims {
     sub: String, // access_token
     jti: Uuid,   // user_id
