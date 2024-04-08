@@ -457,16 +457,40 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
     // JWTを解析
     let decoding_key = DecodingKey::from_secret(b"some-secret");
     let token_message =
-        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256)).unwrap();
+        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256))
+            .unwrap()
+            .claims;
     println!("decoded is {:#?}", token_message);
 
     // JWTの有効期限をチェック
-    // アクセストークン取得（token and user_id）
-    // アクセストークンの有効期限、有効チェック
-    // ユーザー情報取得
-    // ユーザー情報返却
+    if token_message.exp < Local::now().naive_local().and_utc().timestamp() {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
-    Ok(Json("{}"))
+    // アクセストークン取得（token and user_id）
+    let token = &state
+        .repo
+        .find_token(token_message.sub, token_message.jti)
+        .await
+        .unwrap();
+    println!("token is {:#?}", token);
+
+    // ユーザー情報取得
+    let user = &state
+        .repo
+        .find_user(token_message.jti)
+        .await
+        .unwrap()
+        .unwrap();
+    println!("user is {:#?}", user);
+
+    // ユーザー情報返却
+    let response = UserResponse {
+        id: user.id.to_string(),
+        name: user.name.to_string(),
+        email: user.email.to_string(),
+    };
+    Ok(Json(response))
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -483,6 +507,13 @@ struct TokenResponse {
     refresh_token: String,
     token_type: String,
     expires_in: i64,
+}
+
+#[derive(Serialize)]
+struct UserResponse {
+    id: String,
+    name: String,
+    email: String,
 }
 
 fn generate_token<T: Serialize>(claims: &T, secret: &[u8]) -> Result<String, JwtError> {

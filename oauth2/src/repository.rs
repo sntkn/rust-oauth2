@@ -52,6 +52,10 @@ impl Repository {
             .await
     }
 
+    pub async fn find_user(&self, id: Uuid) -> Result<Option<users::Model>, DbErr> {
+        users::Entity::find_by_id(id).one(&self.db).await
+    }
+
     pub async fn create_code(
         &self,
         payload: CreateCodeParams,
@@ -117,5 +121,17 @@ impl Repository {
 
         oauth2_code.revoked_at = Set(Some(Local::now().naive_local()));
         oauth2_code.update(&self.db).await
+    }
+
+    pub async fn find_token(
+        &self,
+        access_token: String,
+        user_id: Uuid,
+    ) -> Result<Option<oauth2_tokens::Model>, DbErr> {
+        oauth2_tokens::Entity::find_by_id(access_token)
+            .filter(oauth2_tokens::Column::UserId.eq(user_id))
+            .filter(oauth2_tokens::Column::RevokedAt.eq(Option::<NaiveDateTime>::None))
+            .one(&self.db)
+            .await
     }
 }
