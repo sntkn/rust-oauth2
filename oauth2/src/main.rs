@@ -15,7 +15,7 @@ use axum::{
 };
 use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use bcrypt::{hash, verify, DEFAULT_COST};
-use chrono::{Duration, Local, NaiveDateTime};
+use chrono::{Duration, Local};
 use jsonwebtoken::{
     decode, encode, errors::Error as JwtError, Algorithm, DecodingKey, EncodingKey, Header,
     Validation,
