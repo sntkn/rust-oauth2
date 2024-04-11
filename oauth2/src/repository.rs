@@ -104,6 +104,7 @@ impl Repository {
         let oauth2_refresh_token = oauth2_refresh_tokens::ActiveModel {
             refresh_token: ActiveValue::set(payload.refresh_token),
             access_token: ActiveValue::set(payload.access_token),
+            revoked_at: ActiveValue::set(None),
             expires_at: ActiveValue::set(payload.expires_at),
             created_at: ActiveValue::set(payload.created_at),
             updated_at: ActiveValue::set(payload.updated_at),
@@ -126,12 +127,44 @@ impl Repository {
     pub async fn find_token(
         &self,
         access_token: String,
-        user_id: Uuid,
     ) -> Result<Option<oauth2_tokens::Model>, DbErr> {
         oauth2_tokens::Entity::find_by_id(access_token)
-            .filter(oauth2_tokens::Column::UserId.eq(user_id))
             .filter(oauth2_tokens::Column::RevokedAt.eq(Option::<NaiveDateTime>::None))
             .one(&self.db)
             .await
+    }
+
+    pub async fn find_refresh_token(
+        &self,
+        refresh_token: String,
+    ) -> Result<Option<oauth2_refresh_tokens::Model>, DbErr> {
+        oauth2_refresh_tokens::Entity::find_by_id(refresh_token)
+            .one(&self.db)
+            .await
+    }
+
+    pub async fn revoke_refresh_token(
+        &self,
+        refresh_token: String,
+    ) -> Result<oauth2_refresh_tokens::Model, DbErr> {
+        let mut oauth2_refresh_token = oauth2_refresh_tokens::Entity::find_by_id(refresh_token)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| DbErr::Custom("Refresh token not found.".to_owned()))?
+            .into_active_model();
+
+        oauth2_refresh_token.revoked_at = Set(Some(Local::now().naive_local()));
+        oauth2_refresh_token.update(&self.db).await
+    }
+
+    pub async fn revoke_token(&self, access_token: String) -> Result<oauth2_tokens::Model, DbErr> {
+        let mut oauth2_token = oauth2_tokens::Entity::find_by_id(access_token)
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| DbErr::Custom("Token not found.".to_owned()))?
+            .into_active_model();
+
+        oauth2_token.revoked_at = Set(Some(Local::now().naive_local()));
+        oauth2_token.update(&self.db).await
     }
 }

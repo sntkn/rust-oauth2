@@ -443,13 +443,80 @@ async fn create_token(
     // refresh token
     } else if input.grant_type == "refresh_token" {
         // リフレッシュトークンの存在チェック
-        // 有効期限切れチェック
-        // トークン登録(JWT)
-        // リフレッシュトークン生成
-        // リフレッシュトークン、トークン無効化
-        // トークン返却
+        let old_refresh_token = &state
+            .repo
+            .find_refresh_token(input.refresh_token.to_string())
+            .await
+            .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+            .ok_or(StatusCode::UNAUTHORIZED)?;
 
-        return Err(StatusCode::BAD_REQUEST);
+        // 有効期限切れチェック
+        if old_refresh_token.expires_at.unwrap() < Local::now().naive_local() {
+            return Err(StatusCode::UNAUTHORIZED);
+        }
+        // old token 取得
+        let old_token = &state
+            .repo
+            .find_token(old_refresh_token.access_token.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+
+        let new_access_token = generate_random_string(32);
+        let token_expires_at = Local::now().naive_local() + Duration::minutes(10);
+        let now = Local::now().naive_local().into();
+        let params = repository::CreateTokenParams {
+            access_token: new_access_token.to_string(),
+            user_id: old_token.user_id,
+            client_id: old_token.client_id,
+            expires_at: token_expires_at.into(),
+            created_at: now,
+            updated_at: now,
+        };
+        let _ = &state.repo.create_token(params).await.unwrap(); // TODO
+
+        // リフレッシュトークン
+        let expires_at = Local::now().naive_local() + Duration::days(90);
+        let now = Local::now().naive_local().into();
+        let refresh_token = generate_random_string(64);
+        let params = repository::CreateRefreshTokenParams {
+            refresh_token: refresh_token.to_string(),
+            access_token: new_access_token.to_string(),
+            expires_at: expires_at.into(),
+            created_at: now,
+            updated_at: now,
+        };
+        let _ = &state.repo.create_refresh_token(params).await.unwrap(); // TODO
+
+        // リフレッシュトークン、トークン無効化
+        let _ = &state
+            .repo
+            .revoke_refresh_token(old_refresh_token.refresh_token.to_string())
+            .await
+            .unwrap();
+        let _ = &state
+            .repo
+            .revoke_token(old_token.access_token.to_string())
+            .await
+            .unwrap();
+
+        // トークン生成(JWT)
+        let token_claims = TokenClaims {
+            sub: new_access_token.to_string(),
+            jti: old_token.user_id,
+            exp: token_expires_at.and_utc().timestamp(),
+            iat: now.unwrap().and_utc().timestamp(),
+        };
+        let access_jwt = generate_token(&token_claims, b"some-secret").unwrap();
+
+        // トークン返却
+        let response = TokenResponse {
+            access_token: access_jwt,
+            refresh_token: refresh_token.to_string(),
+            token_type: "Bearer".to_string(),
+            expires_in: token_expires_at.and_utc().timestamp(),
+        };
+        Ok(Json(response))
     } else {
         return Err(StatusCode::BAD_REQUEST);
     }
@@ -477,10 +544,15 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
     // アクセストークン取得（token and user_id）
     let token = &state
         .repo
-        .find_token(token_message.sub, token_message.jti)
+        .find_token(token_message.sub)
         .await
+        .unwrap()
         .unwrap();
     println!("token is {:#?}", token);
+
+    if token.user_id != token_message.jti {
+        return Err(StatusCode::FORBIDDEN);
+    }
 
     // ユーザー情報取得
     let user = &state
