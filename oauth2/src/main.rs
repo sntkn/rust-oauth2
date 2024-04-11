@@ -442,6 +442,13 @@ async fn create_token(
         Ok(Json(response))
     // refresh token
     } else if input.grant_type == "refresh_token" {
+        // リフレッシュトークンの存在チェック
+        // 有効期限切れチェック
+        // トークン登録(JWT)
+        // リフレッシュトークン生成
+        // リフレッシュトークン、トークン無効化
+        // トークン返却
+
         return Err(StatusCode::BAD_REQUEST);
     } else {
         return Err(StatusCode::BAD_REQUEST);
