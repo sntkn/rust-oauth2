@@ -9,6 +9,7 @@ pub struct Model {
     pub refresh_token: String,
     pub access_token: String,
     pub expires_at: Option<DateTime>,
+    pub revoked_at: Option<DateTime>,
     pub created_at: Option<DateTime>,
     pub updated_at: Option<DateTime>,
 }

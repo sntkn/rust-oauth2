@@ -60,6 +60,7 @@ CREATE TABLE oauth2_refresh_tokens (
     refresh_token VARCHAR(255) PRIMARY KEY,
     access_token VARCHAR(512) NOT NULL,
     expires_at TIMESTAMP,
+    revoked_at TIMESTAMP DEFAULT NULL,
     created_at TIMESTAMP DEFAULT current_timestamp,
     updated_at TIMESTAMP DEFAULT current_timestamp,
     FOREIGN KEY (access_token) REFERENCES oauth2_tokens (access_token)
