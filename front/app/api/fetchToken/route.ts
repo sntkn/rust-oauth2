@@ -13,11 +13,6 @@ export async function POST(req: NextRequest) {
   const data = await req.json();
   const code = data.code;
 
-  const response = new NextResponse(JSON.stringify({ result: true }))
-
-  // Set a cookie
-  response.cookies.set('myCookieName', 'some-value', { expires: Date.now() + 1000 })
-
   const res = await fetch('http://localhost:3000/token', {
     method: 'POST',
     headers: {
@@ -43,10 +38,7 @@ export async function POST(req: NextRequest) {
   const user = await res2.json()
   console.log(user)
 
-  // TODO: setcookie
-  //cookies().set('access_token', token.accessToken)
+  const response = NextResponse.json({ user })
 
-  return NextResponse.json({
-    result: true
-  })
+  return response
 }
