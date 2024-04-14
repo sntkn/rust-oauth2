@@ -271,10 +271,8 @@ async fn authorize(
     if input.redirect_uri.is_empty() && auth_val.redirect_uri.is_some() {
         input.redirect_uri = auth_val.redirect_uri.unwrap();
     }
-    println!("{:?}", input);
 
     if let Err(errors) = input.validate() {
-        println!("{:#?}", errors);
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -310,7 +308,6 @@ async fn authorize(
     // リクエストパラメータをセッションに保存する
     //ssession.insert("auth", val).unwrap();
     let val = session.get::<String>("auth").unwrap();
-    println!("session is {:#?}", &val);
     state.store.store_session(session).await.unwrap();
     // ログインフォームを表示する
     Ok((jar, HtmlTemplate(template)))
@@ -328,7 +325,6 @@ async fn authorization(
     headers: HeaderMap,
     input: Form<AuthorizationInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    println!("{:#?}", input);
     if let Err(errors) = input.validate() {
         println!("{:#?}", errors);
         Ok(Redirect::to("/autorize"))
@@ -526,7 +522,6 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
     // Authorization ヘッダからアクセストークン取得
     let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
     let token = authorization.split(' ').last().unwrap();
-    println!("token is {}", token);
 
     // JWTを解析
     let decoding_key = DecodingKey::from_secret(b"some-secret");
@@ -534,7 +529,6 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
         decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256))
             .unwrap()
             .claims;
-    println!("decoded is {:#?}", token_message);
 
     // JWTの有効期限をチェック
     if token_message.exp < Local::now().naive_local().and_utc().timestamp() {
@@ -548,7 +542,6 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
         .await
         .unwrap()
         .unwrap();
-    println!("token is {:#?}", token);
 
     if token.user_id != token_message.jti {
         return Err(StatusCode::FORBIDDEN);
@@ -561,7 +554,6 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
         .await
         .unwrap()
         .unwrap();
-    println!("user is {:#?}", user);
 
     // ユーザー情報返却
     let response = UserResponse {
