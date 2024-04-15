@@ -1,7 +1,8 @@
 import { NextResponse, NextRequest } from 'next/server';
+import { Token } from '../../../entity'
 //import { cookies } from 'next/headers'
 
-type Token = {
+type TokenResponse = {
   access_token: string
   refresh_token: string
   token_type: string
@@ -24,21 +25,12 @@ export async function POST(req: NextRequest) {
     })
   })
 
-  const token: Token = await res.json()
-  console.log(token)
+  const tokenResponse: TokenResponse = await res.json()
+  const token: Token = {
+    accessToken: tokenResponse.access_token,
+    refreshToken: tokenResponse.refresh_token,
+    expiresIn: tokenResponse.expires_in,
+  }
 
-  // me (あとでどかす)
-  const res2 = await fetch('http://localhost:3000/me', {
-    method: 'GET',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token.access_token}`
-    },
-  })
-  const user = await res2.json()
-  console.log(user)
-
-  const response = NextResponse.json({ user })
-
-  return response
+  return NextResponse.json(token)
 }
