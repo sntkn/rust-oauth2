@@ -129,7 +129,7 @@ impl Repository {
         access_token: String,
     ) -> Result<Option<oauth2_tokens::Model>, DbErr> {
         oauth2_tokens::Entity::find_by_id(access_token)
-            .filter(oauth2_tokens::Column::RevokedAt.eq(Option::<NaiveDateTime>::None))
+            .filter(oauth2_tokens::Column::RevokedAt.is_null())
             .one(&self.db)
             .await
     }
@@ -139,6 +139,7 @@ impl Repository {
         refresh_token: String,
     ) -> Result<Option<oauth2_refresh_tokens::Model>, DbErr> {
         oauth2_refresh_tokens::Entity::find_by_id(refresh_token)
+            .filter(oauth2_refresh_tokens::Column::RevokedAt.is_null())
             .one(&self.db)
             .await
     }

@@ -522,6 +522,7 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
     // Authorization ヘッダからアクセストークン取得
     let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
     let token = authorization.split(' ').last().unwrap();
+    println!("{}", token);
 
     // JWTを解析
     let decoding_key = DecodingKey::from_secret(b"some-secret");
@@ -535,13 +536,15 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
         return Err(StatusCode::FORBIDDEN);
     }
 
+    println!("{}", token_message.sub);
+
     // アクセストークン取得（token and user_id）
     let token = &state
         .repo
         .find_token(token_message.sub)
         .await
-        .unwrap()
-        .unwrap();
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
 
     if token.user_id != token_message.jti {
         return Err(StatusCode::FORBIDDEN);
@@ -552,8 +555,8 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
         .repo
         .find_user(token_message.jti)
         .await
-        .unwrap()
-        .unwrap();
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
 
     // ユーザー情報返却
     let response = UserResponse {
