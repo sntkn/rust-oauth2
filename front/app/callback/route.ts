@@ -1,3 +1,5 @@
+import { NextResponse, NextRequest } from 'next/server';
+import { cookies } from 'next/headers';
 import { User, Token } from '../../entity'
 
 async function fetchToken(code: string): Promise<Token> {
@@ -28,32 +30,11 @@ async function fetchUser(token: string): Promise<User> {
   return await res.json()
 }
 
-export default async function Callback({
-  searchParams,
-}: {
-  searchParams: { [key: string]: string }
-}) {
-  // @see https://nextjs.org/docs/app/api-reference/file-conventions/page#searchparams-optional
-  const code = searchParams.code
+export async function GET(request: NextRequest) {
+  const searchParams = request.nextUrl.searchParams
+  const code = searchParams.get('code') ?? ''
   const token: Token = await fetchToken(code)
   const user: User = await fetchUser(token.accessToken)
-
-  return (
-    <div>
-      <p>Processing...</p>
-      <dl>
-        <dt>Accesstoken:</dt>
-        <dd>{token.accessToken}</dd>
-        <dt>RefreshToken</dt>
-        <dd>{token.refreshToken}</dd>
-      </dl>
-      <h2>User</h2>
-      <dl>
-        <dt>ID</dt>
-        <dd>{user.id}</dd>
-        <dt>Name</dt>
-        <dd>{user.name}</dd>
-      </dl>
-    </div>
-  )
+  cookies().set('user', JSON.stringify(user))
+  return NextResponse.redirect('http://localhost:8000');
 }
