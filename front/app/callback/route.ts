@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { cookies } from 'next/headers';
-import { User, Token } from '../../entity'
+import { User, Token } from '../../entity';
+import { session } from '../../lib/session';
 
 async function fetchToken(code: string): Promise<Token> {
   // 認可コードが取得できた場合、アクセストークンの取得リクエストを送信
@@ -35,6 +35,8 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code') ?? ''
   const token: Token = await fetchToken(code)
   const user: User = await fetchUser(token.accessToken)
-  cookies().set('user', JSON.stringify(user))
+  await session().set('token', token);
+  await session().set('user', user);
+
   return NextResponse.redirect('http://localhost:8000');
 }
