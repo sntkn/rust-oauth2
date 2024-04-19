@@ -47,6 +47,7 @@ async fn main() {
         .route("/authorization", post(authorization))
         .route("/token", post(create_token))
         .route("/me", get(me))
+        .route("/signout", post(signout))
         //.layer(middleware::from_fn_with_state(
         //    state.clone(),
         //    print_request_response,
@@ -565,6 +566,58 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
         email: user.email.to_string(),
     };
     Ok(Json(response))
+}
+
+async fn signout(
+    state: State<AppState>,
+    headers: HeaderMap,
+) -> Result<impl IntoResponse, StatusCode> {
+    // Authorization ヘッダからアクセストークン取得
+    let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
+    let token = authorization.split(' ').last().unwrap();
+    println!("{}", token);
+
+    // JWTを解析
+    let decoding_key = DecodingKey::from_secret(b"some-secret");
+    let token_message =
+        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256))
+            .unwrap()
+            .claims;
+
+    // JWTの有効期限をチェック
+    if token_message.exp < Local::now().naive_local().and_utc().timestamp() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    println!("{}", token_message.sub);
+
+    // アクセストークン取得（token and user_id）
+    let token = &state
+        .repo
+        .find_token(token_message.sub)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if token.user_id != token_message.jti {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    // アクセストークンを破棄
+    state
+        .repo
+        .revoke_token(token.access_token.to_string())
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    // リフレッシュトークンを破棄
+    state
+        .repo
+        .revoke_refresh_token_by_token(token.access_token.to_string())
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    Ok(())
 }
 
 #[derive(Serialize, Deserialize, Debug)]

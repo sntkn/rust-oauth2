@@ -158,6 +158,21 @@ impl Repository {
         oauth2_refresh_token.update(&self.db).await
     }
 
+    pub async fn revoke_refresh_token_by_token(
+        &self,
+        access_token: String,
+    ) -> Result<oauth2_refresh_tokens::Model, DbErr> {
+        let mut oauth2_refresh_token = oauth2_refresh_tokens::Entity::find()
+            .filter(oauth2_refresh_tokens::Column::AccessToken.eq(access_token))
+            .one(&self.db)
+            .await?
+            .ok_or_else(|| DbErr::Custom("Refresh token not found.".to_owned()))?
+            .into_active_model();
+
+        oauth2_refresh_token.revoked_at = Set(Some(Local::now().naive_local()));
+        oauth2_refresh_token.update(&self.db).await
+    }
+
     pub async fn revoke_token(&self, access_token: String) -> Result<oauth2_tokens::Model, DbErr> {
         let mut oauth2_token = oauth2_tokens::Entity::find_by_id(access_token)
             .one(&self.db)

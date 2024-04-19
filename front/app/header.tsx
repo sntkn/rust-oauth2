@@ -1,9 +1,27 @@
 import Link from 'next/link'
-import { User } from '../entity'
+import { User, Token } from '../entity'
 import { session } from '../lib/session'
 
 const Header = async () => {
+  const logout = async (token: string) => {
+    const res = await fetch('http://localhost:8000/api/signOut', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+      },
+      cache: 'no-cache',
+    })
+
+    session().set('user', null)
+    session().set('token', null)
+
+    return await res.json()
+  }
+
   const user: User = await session().get('user')
+  const token: Token = await session().get('token')
+
   return (
     <header className="bg-blue-500 p-4">
       <div className="container mx-auto">
@@ -24,12 +42,12 @@ const Header = async () => {
               {user && (
                 <>
                   <span>ようこそ {user.name} さん</span>
-                  <Link
-                    href="http://localhost/"
+                  <span
+                    onClick={() => logout(token.accessToken)}
                     className="text-white hover:underline"
                   >
                     ログアウト
-                  </Link>
+                  </span>
                 </>
               )}
             </li>
