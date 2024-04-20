@@ -1,9 +1,9 @@
 import { NextResponse, NextRequest } from 'next/server';
 
-export async function GET(req: NextRequest) {
+export async function POST(req: NextRequest) {
   const token = req.headers.get('Authorization')?.split(' ')[1];
 
-  const res = await fetch('http://localhost:3000/signOut', {
+  const res = await fetch('http://localhost:3000/signout', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -11,6 +11,7 @@ export async function GET(req: NextRequest) {
     },
   })
 
+  console.log(res)
 
   return NextResponse.json({ result: true })
 }

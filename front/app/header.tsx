@@ -1,26 +1,35 @@
+'use client'
+
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { User, Token } from '../entity'
-import { session } from '../lib/session'
 
-const Header = async () => {
-  const logout = async (token: string) => {
-    const res = await fetch('http://localhost:8000/api/signOut', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${token}`,
-      },
-      cache: 'no-cache',
-    })
+import { handleLogout, getUser } from '../lib/serverActions';
+const Header = () => {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-    session().set('user', null)
-    session().set('token', null)
+  useEffect(() => {
+    (async () => {
+      const user: User = await getUser()
+      console.log("User -----------")
+      console.log(user)
+      if (user) {
+        setUser(user)
+      }
+    })()
+  }, [])
 
-    return await res.json()
+
+  useEffect(() => {
+    // userの中身が変わるたびにisLoggedInを更新
+    setIsLoggedIn(!!user);
+  }, [user])
+
+  const handleLogoutClick = () => {
+    handleLogout()
   }
 
-  const user: User = await session().get('user')
-  const token: Token = await session().get('token')
 
   return (
     <header className="bg-blue-500 p-4">
@@ -31,7 +40,7 @@ const Header = async () => {
           </Link>
           <ul className="flex space-x-4">
             <li>
-              {!user && (
+              {!isLoggedIn && (
                 <Link
                   href="http://localhost:3000/authorize?response_type=code&client_id=550e8400-e29b-41d4-a716-446655440000&scope=read&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback&state=ok"
                   className="text-white hover:underline"
@@ -39,11 +48,11 @@ const Header = async () => {
                   Login
                 </Link>
               )}
-              {user && (
+              {isLoggedIn && user && (
                 <>
                   <span>ようこそ {user.name} さん</span>
                   <span
-                    onClick={() => logout(token.accessToken)}
+                    onClick={() => handleLogoutClick()}
                     className="text-white hover:underline"
                   >
                     ログアウト
