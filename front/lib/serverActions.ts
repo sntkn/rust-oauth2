@@ -2,11 +2,11 @@
 import { session } from '../lib/session'
 import { Token, User } from '../entity'
 
-export const handleLogout = async () => {
+export const handleLogout = async (): Promise<Boolean> => {
   const token: Token = await session().get('token')
   if (!token) {
     await session().set('user', null)
-    return;
+    return true;
   }
 
   const res = await fetch('http://localhost:8000/api/signOut', {
@@ -18,13 +18,11 @@ export const handleLogout = async () => {
     cache: 'no-cache',
   })
 
-  console.log(res)
-
   await session().set('user', null)
   await session().set('token', null)
 
   const json = await res.json()
-  console.log(json)
+  return json.result === true
 }
 
 export const getUser = async (): Promise<User> => {

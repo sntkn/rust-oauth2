@@ -27,7 +27,13 @@ const Header = () => {
   }, [user])
 
   const handleLogoutClick = () => {
-    handleLogout()
+    (async () => {
+      const res = await handleLogout()
+      if (res) {
+        setUser(null)
+        setIsLoggedIn(!!user)
+      }
+    })()
   }
 
 
@@ -51,12 +57,12 @@ const Header = () => {
               {isLoggedIn && user && (
                 <>
                   <span>ようこそ {user.name} さん</span>
-                  <span
+                  <button
                     onClick={() => handleLogoutClick()}
                     className="text-white hover:underline"
                   >
                     ログアウト
-                  </span>
+                  </button>
                 </>
               )}
             </li>
