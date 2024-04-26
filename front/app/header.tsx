@@ -73,7 +73,7 @@ const Header = () => {
         </div>
         <nav className={`absolute right-2 top-8 mt-4 bg-white rounded-lg shadow ${isMenuOpen ? "block" : "hidden"}`}>
           <ul className="flex flex-col text-gray-800 py-4">
-            <li className="hover:bg-gray-300"><a className="block px-8 py-2" href="/">Home</a></li>
+            <li className="hover:bg-gray-300"><Link href="/user" className="block px-8 py-2">User</Link></li>
             <li className="hover:bg-gray-300"><a className="block px-8 py-2" href="/about">About</a></li>
             <li className="hover:bg-gray-300"><a className="block px-8 py-2" href="/contact">Contact</a></li>
             {isLoggedIn && user && (

@@ -1,6 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
 import { Token } from '../../../entity'
-//import { cookies } from 'next/headers'
 
 type TokenResponse = {
   access_token: string
@@ -10,7 +9,6 @@ type TokenResponse = {
 }
 
 export async function POST(req: NextRequest) {
-  //cookies().set('access_token', 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', { expires: Date.now() + 1000 })
   const data = await req.json();
   const code = data.code;
 
