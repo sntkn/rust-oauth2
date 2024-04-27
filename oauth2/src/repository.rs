@@ -56,6 +56,17 @@ impl Repository {
         users::Entity::find_by_id(id).one(&self.db).await
     }
 
+    pub async fn edit_user(&self, id: Uuid, name: String) -> Result<users::Model, DbErr> {
+        let mut user = self
+            .find_user(id)
+            .await?
+            .ok_or_else(|| DbErr::Custom("User not found.".to_owned()))?
+            .into_active_model();
+
+        user.name = Set(name);
+        user.update(&self.db).await
+    }
+
     pub async fn create_code(
         &self,
         payload: CreateCodeParams,

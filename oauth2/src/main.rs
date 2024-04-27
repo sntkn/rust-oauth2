@@ -46,7 +46,7 @@ async fn main() {
         .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization))
         .route("/token", post(create_token))
-        .route("/me", get(me))
+        .route("/me", get(me).put(edit_user))
         .route("/signout", post(signout))
         //.layer(middleware::from_fn_with_state(
         //    state.clone(),
@@ -174,6 +174,16 @@ struct CreateTokenInput {
     #[serde(default)]
     #[validate(length(min = 1, message = "Paramater 'refresh_token' can not be empty"))]
     refresh_token: String,
+}
+
+#[derive(Debug, Deserialize, Validate)]
+struct EditUserInput {
+    #[validate(length(
+        min = 1,
+        max = 100,
+        message = "Parameter 'name' must be between 1 and 100 characters"
+    ))]
+    name: String,
 }
 
 #[derive(Serialize)]
@@ -558,6 +568,57 @@ async fn me(state: State<AppState>, headers: HeaderMap) -> Result<impl IntoRespo
         .await
         .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
         .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    // ユーザー情報返却
+    let response = UserResponse {
+        id: user.id.to_string(),
+        name: user.name.to_string(),
+        email: user.email.to_string(),
+    };
+    Ok(Json(response))
+}
+
+async fn edit_user(
+    state: State<AppState>,
+    headers: HeaderMap,
+    input: Json<EditUserInput>,
+) -> Result<impl IntoResponse, StatusCode> {
+    // Authorization ヘッダからアクセストークン取得
+    let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
+    let token = authorization.split(' ').last().unwrap();
+    println!("{}", token);
+
+    // JWTを解析
+    let decoding_key = DecodingKey::from_secret(b"some-secret");
+    let token_message =
+        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256))
+            .unwrap()
+            .claims;
+
+    // JWTの有効期限をチェック
+    if token_message.exp < Local::now().naive_local().and_utc().timestamp() {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    println!("{}", token_message.sub);
+
+    // アクセストークン取得（token and user_id）
+    let token = &state
+        .repo
+        .find_token(token_message.sub)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::UNAUTHORIZED)?;
+
+    if token.user_id != token_message.jti {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let user = &state
+        .repo
+        .edit_user(token.user_id, input.name.to_string())
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
     // ユーザー情報返却
     let response = UserResponse {
