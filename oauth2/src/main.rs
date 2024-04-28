@@ -8,7 +8,7 @@ use async_session::{Session, SessionStore};
 use axum::{
     debug_handler,
     extract::{Extension, Query, Request, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
     middleware::Next,
     response::{Html, IntoResponse, Redirect, Response},
     routing::{get, post},
@@ -301,7 +301,7 @@ fn uuid(id: &str) -> Result<(), ValidationError> {
 //}
 
 async fn authorize(
-    state: State<AppState>,
+    State(state): State<AppState>,
     Extension(session): Extension<Session>,
     Extension(jar): Extension<CookieJar>,
     Query(mut input): Query<AuthorizeInput>,
@@ -328,7 +328,7 @@ async fn authorize(
 
     let parsed_uuid = Uuid::parse_str(&input.client_id).unwrap();
     // client_id が そんざいすること
-    let client = &state
+    let client = state
         .repo
         .find_client(parsed_uuid)
         .await
@@ -371,7 +371,7 @@ async fn authorize(
 // redirect_uri に認可コードと共にリダイレクトする
 #[debug_handler]
 async fn authorization(
-    state: State<AppState>,
+    State(state): State<AppState>,
     Extension(session): Extension<Session>,
     input: Form<AuthorizationInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
@@ -380,7 +380,7 @@ async fn authorization(
         Ok(Redirect::to("/autorize"))
     } else {
         let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
-        let user = &state
+        let user = state
             .repo
             .find_user_by_email(input.email.to_string())
             .await
@@ -407,7 +407,7 @@ async fn authorization(
             updated_at: datetime,
         };
 
-        let _ = &state.repo.create_code(params).await.unwrap(); // TODO: check
+        let _ = state.repo.create_code(params).await.unwrap(); // TODO: check
 
         let qs = vec![("code", code.to_string())];
         let url = Url::parse_with_params(&redirect_uri, qs).unwrap();
@@ -419,7 +419,7 @@ async fn authorization(
 
 #[debug_handler]
 async fn create_token(
-    state: State<AppState>,
+    State(state): State<AppState>,
     input: Json<CreateTokenInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
     // issue token
@@ -428,7 +428,7 @@ async fn create_token(
             return Err(StatusCode::BAD_REQUEST);
         }
         // コードの存在チェック
-        let code = &state
+        let code = state
             .repo
             .find_code(input.code.to_string())
             .await
@@ -450,7 +450,7 @@ async fn create_token(
             created_at: now,
             updated_at: now,
         };
-        let _ = &state.repo.create_token(params).await.unwrap(); // TODO
+        let _ = state.repo.create_token(params).await.unwrap(); // TODO
 
         // トークン生成(JWT)
         let token_claims = TokenClaims {
@@ -462,7 +462,7 @@ async fn create_token(
         let access_jwt = generate_token(&token_claims, b"some-secret").unwrap();
 
         // コード無効化
-        let _ = &state.repo.revoke_code(code.code.to_string()).await.unwrap();
+        let _ = state.repo.revoke_code(code.code.to_string()).await.unwrap();
 
         // リフレッシュトークン生成
         let expires_at = Local::now().naive_local() + Duration::days(90);
@@ -475,7 +475,7 @@ async fn create_token(
             created_at: now,
             updated_at: now,
         };
-        let _ = &state.repo.create_refresh_token(params).await.unwrap(); // TODO
+        let _ = state.repo.create_refresh_token(params).await.unwrap(); // TODO
 
         // トークン返却
         let response = TokenResponse {
@@ -488,7 +488,7 @@ async fn create_token(
     // refresh token
     } else if input.grant_type == "refresh_token" {
         // リフレッシュトークンの存在チェック
-        let old_refresh_token = &state
+        let old_refresh_token = state
             .repo
             .find_refresh_token(input.refresh_token.to_string())
             .await
@@ -500,7 +500,7 @@ async fn create_token(
             return Err(StatusCode::UNAUTHORIZED);
         }
         // old token 取得
-        let old_token = &state
+        let old_token = state
             .repo
             .find_token(old_refresh_token.access_token.to_string())
             .await
@@ -518,7 +518,7 @@ async fn create_token(
             created_at: now,
             updated_at: now,
         };
-        let _ = &state.repo.create_token(params).await.unwrap(); // TODO
+        let _ = state.repo.create_token(params).await.unwrap(); // TODO
 
         // リフレッシュトークン
         let expires_at = Local::now().naive_local() + Duration::days(90);
@@ -531,15 +531,15 @@ async fn create_token(
             created_at: now,
             updated_at: now,
         };
-        let _ = &state.repo.create_refresh_token(params).await.unwrap(); // TODO
+        let _ = state.repo.create_refresh_token(params).await.unwrap(); // TODO
 
         // リフレッシュトークン、トークン無効化
-        let _ = &state
+        let _ = state
             .repo
             .revoke_refresh_token(old_refresh_token.refresh_token.to_string())
             .await
             .unwrap();
-        let _ = &state
+        let _ = state
             .repo
             .revoke_token(old_token.access_token.to_string())
             .await
@@ -568,11 +568,11 @@ async fn create_token(
 }
 
 async fn me(
-    state: State<AppState>,
+    State(state): State<AppState>,
     Extension(claims): Extension<TokenClaims>,
 ) -> Result<impl IntoResponse, StatusCode> {
     // ユーザー情報取得
-    let user = &state
+    let user = state
         .repo
         .find_user(claims.jti)
         .await
@@ -589,11 +589,11 @@ async fn me(
 }
 
 async fn edit_user(
-    state: State<AppState>,
+    State(state): State<AppState>,
     Extension(claims): Extension<TokenClaims>,
     input: Json<EditUserInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let user = &state
+    let user = state
         .repo
         .edit_user(claims.jti, input.name.to_string())
         .await
@@ -609,7 +609,7 @@ async fn edit_user(
 }
 
 async fn signout(
-    state: State<AppState>,
+    State(state): State<AppState>,
     Extension(claims): Extension<TokenClaims>,
 ) -> Result<impl IntoResponse, StatusCode> {
     // アクセストークンを破棄
