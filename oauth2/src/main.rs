@@ -77,7 +77,6 @@ async fn auth_middleware(
     // Authorization ヘッダからアクセストークン取得
     let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
     let token = authorization.split(' ').last().unwrap();
-    println!("--- Middleware ----- {}", token);
 
     // JWTを解析
     let decoding_key = DecodingKey::from_secret(b"some-secret");
@@ -90,8 +89,6 @@ async fn auth_middleware(
     if token_message.exp < Local::now().naive_local().and_utc().timestamp() {
         return Err(StatusCode::FORBIDDEN);
     }
-
-    println!("--- Middleware ----- {}", token_message.sub);
 
     // アクセストークン取得（token and user_id）
     let token_result = state.repo.find_token(token_message.sub.to_string()).await;
@@ -183,6 +180,7 @@ struct AuthorizeInput {
     #[validate(url)]
     redirect_uri: String,
 }
+
 #[derive(Debug, Deserialize)]
 struct AuthorizeValue {
     response_type: Option<String>,
@@ -665,12 +663,6 @@ fn generate_random_string(len: usize) -> String {
         .take(len)
         .collect();
     String::from_utf8(random_bytes).unwrap()
-}
-
-#[derive(Template)]
-#[template(path = "hello.html")]
-struct HelloTemplate {
-    name: String,
 }
 
 #[derive(Template)]
