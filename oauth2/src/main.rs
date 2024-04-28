@@ -43,14 +43,14 @@ async fn main() {
 
     let state = AppState { store, repo };
 
-    let router = Router::new()
+    let session_router = Router::new()
         .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization))
-        .route("/token", post(create_token));
-    //.layer(middleware::from_fn_with_state(
-    //    state.clone(),
-    //    print_request_response,
-    //))
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            session_middleware,
+        ));
+    let token_router = Router::new().route("/token", post(create_token));
     let auth_router = Router::new()
         .route("/me", get(me).put(edit_user))
         .route("/signout", post(signout))
@@ -59,7 +59,10 @@ async fn main() {
             auth_middleware,
         ));
 
-    let app = router.merge(auth_router).with_state(state);
+    let app = session_router
+        .merge(token_router)
+        .merge(auth_router)
+        .with_state(state);
 
     let listner = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
     axum::serve(listner, app).await.unwrap();
@@ -105,42 +108,32 @@ async fn auth_middleware(
     Ok(next.run(req).await)
 }
 
-//async fn print_request_response(
-//    State(state): State<AppState>,
-//    req: Request,
-//    next: Next,
-//) -> Result<(CookieJar, impl IntoResponse), (StatusCode, String)> {
-//    println!("================== middleware =================");
-//    let session = Session::new();
-//    let cookie_value = state.store.store_session(session).await.unwrap().unwrap();
-//
-//    let jar = CookieJar::from_headers(req.headers());
-//
-//    let cc = EntityCookie::new("session_id", cookie_value);
-//
-//    let cookie = jar.get("session_id").unwrap_or(&cc);
-//
-//    let j = jar.clone().add(cookie.clone());
-//
-//    Ok((j, next.run(req).await))
-//}
-
-async fn load_session(store: &RedisSessionStore, headers: &HeaderMap) -> (Session, CookieJar) {
+async fn session_middleware(
+    State(state): State<AppState>,
+    mut req: Request,
+    next: Next,
+) -> Result<Response, StatusCode> {
+    let headers = req.headers();
     let session = Session::new();
     let jar = CookieJar::from_headers(headers);
     let cookie = {
-        let cookie_value = store.store_session(session).await.unwrap().unwrap();
+        let cookie_value = state.store.store_session(session).await.unwrap().unwrap();
         let cookie_entity = EntityCookie::new("session_id", cookie_value);
         let cookie = jar.get("session_id").unwrap_or(&cookie_entity);
         cookie.clone()
     };
     let jar = jar.add(cookie.clone());
-    let session = store
+    let session = state
+        .store
         .load_session(cookie.value().to_string())
         .await
         .unwrap()
         .unwrap();
-    (session, jar)
+
+    req.extensions_mut().insert(session);
+    req.extensions_mut().insert(jar);
+
+    Ok(next.run(req).await)
 }
 
 async fn unmarshal_from_session<T: DeserializeOwned>(session: &Session, key: String) -> T {
@@ -311,10 +304,10 @@ fn uuid(id: &str) -> Result<(), ValidationError> {
 
 async fn authorize(
     state: State<AppState>,
-    headers: HeaderMap,
+    Extension(session): Extension<Session>,
+    Extension(jar): Extension<CookieJar>,
     Query(mut input): Query<AuthorizeInput>,
 ) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
-    let (session, jar) = load_session(&state.store, &headers).await;
     // セッションをまず取得して、さらにリクエストパラメータがあったら上書きする
     let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
 
@@ -381,14 +374,13 @@ async fn authorize(
 #[debug_handler]
 async fn authorization(
     state: State<AppState>,
-    headers: HeaderMap,
+    Extension(session): Extension<Session>,
     input: Form<AuthorizationInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
     if let Err(errors) = input.validate() {
         println!("{:#?}", errors);
         Ok(Redirect::to("/autorize"))
     } else {
-        let (session, _jar) = load_session(&state.store, &headers).await;
         let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
         let user = &state
             .repo
