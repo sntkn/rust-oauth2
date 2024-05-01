@@ -54,6 +54,7 @@ async fn main() {
     let auth_router = Router::new()
         .route("/me", get(me).put(edit_user))
         .route("/signout", post(signout))
+        .route("/introspect", post(introspect))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -82,7 +83,7 @@ async fn auth_middleware(
     let decoding_key = DecodingKey::from_secret(b"some-secret");
     let token_message =
         decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256))
-            .unwrap()
+            .or(Err(StatusCode::UNAUTHORIZED))?
             .claims;
 
     // JWTの有効期限をチェック
@@ -627,6 +628,12 @@ async fn signout(
         .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
     Ok(())
+}
+
+async fn introspect(
+    Extension(claims): Extension<TokenClaims>,
+) -> Result<impl IntoResponse, StatusCode> {
+    Ok(Json(claims))
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
