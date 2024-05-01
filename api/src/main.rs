@@ -11,6 +11,7 @@ use axum::{
 };
 use serde::{Deserialize, Serialize};
 use std::env;
+use uuid::Uuid;
 
 #[derive(Clone)]
 struct AppState {
@@ -23,9 +24,9 @@ async fn main() {
     let repo = repository::Repository::new(db_url).await.unwrap();
     let state = AppState { repo };
 
-    let router = Router::new().route("/user", get(handler_json)).layer(
-        axum::middleware::from_fn_with_state(state.clone(), auth_middleware),
-    );
+    let router = Router::new()
+        .route("/user", get(handler_json))
+        .layer(axum::middleware::from_fn(auth_middleware));
     let listner = tokio::net::TcpListener::bind("127.0.0.1:3001")
         .await
         .unwrap();
@@ -37,6 +38,13 @@ struct User {
     name: String,
     mail: String,
     age: u32,
+}
+#[derive(Serialize, Deserialize, Debug, Clone)]
+struct TokenClaims {
+    sub: String, // access_token
+    jti: Uuid,   // user_id
+    exp: i64,
+    iat: i64,
 }
 
 async fn handler_json(Path(id): Path<usize>) -> Json<serde_json::Value> {
@@ -62,14 +70,14 @@ async fn handler_json(Path(id): Path<usize>) -> Json<serde_json::Value> {
     Json(data)
 }
 
-async fn auth_middleware(
-    State(state): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
     let headers = req.headers();
     // Authorization ヘッダからアクセストークン取得
-    let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
+    let authorization = headers
+        .get("Authorization")
+        .ok_or(StatusCode::UNAUTHORIZED)?
+        .to_str()
+        .unwrap();
     let token = authorization.split(' ').last().unwrap();
 
     // トークンをAuthにチェックしてもらう
@@ -79,14 +87,16 @@ async fn auth_middleware(
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
-        .unwrap();
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
     if response.status().is_success() {
         let body = response.text().await.unwrap();
+        let auth_response: TokenClaims = serde_json::from_str(&body).unwrap();
         println!("Response: {}", body);
+        req.extensions_mut().insert(auth_response);
+        Ok(next.run(req).await)
     } else {
         println!("Request Failed with status: {}", response.status());
+        Err(response.status())
     }
-
-    Ok(next.run(req).await)
 }
