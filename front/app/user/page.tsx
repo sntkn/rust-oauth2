@@ -35,8 +35,8 @@ export default function UserPage() {
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     (async () => {
-      const res = fetchUer(name);
-    })
+      const res = await fetchUer(name);
+    })()
   }
 
   return (

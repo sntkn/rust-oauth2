@@ -122,7 +122,7 @@ async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, Statu
     // トークンをAuthにチェックしてもらう
     let client = reqwest::Client::new();
     let response = client
-        .get("http://localhost:3000/introspect")
+        .post("http://localhost:3000/introspect")
         .header("Authorization", format!("Bearer {}", token))
         .send()
         .await
