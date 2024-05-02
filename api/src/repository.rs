@@ -3,6 +3,11 @@ use chrono::{Local, NaiveDateTime};
 use sea_orm::*;
 use uuid::Uuid;
 
+pub struct EditUserParams {
+    pub name: Option<String>,
+    pub email: Option<String>,
+}
+
 #[derive(Clone)]
 pub struct Repository {
     db: DbConn,
@@ -18,14 +23,19 @@ impl Repository {
         users::Entity::find_by_id(id).one(&self.db).await
     }
 
-    pub async fn edit_user(&self, id: Uuid, name: String) -> Result<users::Model, DbErr> {
+    pub async fn edit_user(&self, id: Uuid, params: EditUserParams) -> Result<users::Model, DbErr> {
         let mut user = self
             .find_user(id)
             .await?
             .ok_or_else(|| DbErr::Custom("User not found.".to_owned()))?
             .into_active_model();
 
-        user.name = Set(name);
+        if let Some(name) = params.name {
+            user.name = Set(name);
+        }
+        if let Some(email) = params.email {
+            user.email = Set(email)
+        }
         user.update(&self.db).await
     }
 }

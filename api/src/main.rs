@@ -12,6 +12,7 @@ use axum::{
 use serde::{Deserialize, Serialize};
 use std::env;
 use uuid::Uuid;
+use validator::{Validate, ValidationError};
 
 #[derive(Clone)]
 struct AppState {
@@ -25,19 +26,22 @@ async fn main() {
     let state = AppState { repo };
 
     let router = Router::new()
-        .route("/user", get(handler_json))
-        .layer(axum::middleware::from_fn(auth_middleware));
+        .route("/user", get(find_user).put(edit_user))
+        .layer(axum::middleware::from_fn(auth_middleware))
+        .with_state(state);
+
     let listner = tokio::net::TcpListener::bind("127.0.0.1:3001")
         .await
         .unwrap();
+
     axum::serve(listner, router).await.unwrap();
 }
 
 #[derive(Serialize, Deserialize)]
 struct User {
+    id: Uuid,
     name: String,
-    mail: String,
-    age: u32,
+    email: String,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 struct TokenClaims {
@@ -47,27 +51,62 @@ struct TokenClaims {
     iat: i64,
 }
 
-async fn handler_json(Path(id): Path<usize>) -> Json<serde_json::Value> {
-    let data = [
-        User {
-            name: String::from("Taro"),
-            mail: String::from("taro@yamada"),
-            age: 39,
-        },
-        User {
-            name: String::from("Hanako"),
-            mail: String::from("hanako@flower"),
-            age: 28,
-        },
-        User {
-            name: String::from("Sachiko"),
-            mail: String::from("sachiko@happy"),
-            age: 17,
-        },
-    ];
-    let item = &data[id];
-    let data = serde_json::json!(item);
-    Json(data)
+#[derive(Debug, Deserialize, Validate)]
+struct EditUserInput {
+    #[serde(default)]
+    #[validate(length(min = 1, message = "Paramater 'user' can not be empty"))]
+    name: Option<String>,
+
+    #[validate(length(min = 1, message = "Paramater 'email' can not be empty"))]
+    #[validate(email)]
+    email: Option<String>,
+}
+
+async fn find_user(
+    State(state): State<AppState>,
+    Extension(claims): Extension<TokenClaims>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let user = state
+        .repo
+        .find_user(claims.jti)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let data = User {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+    };
+    let data = serde_json::json!(data);
+
+    Ok(Json(data))
+}
+
+async fn edit_user(
+    State(state): State<AppState>,
+    Extension(claims): Extension<TokenClaims>,
+    input: Json<EditUserInput>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = repository::EditUserParams {
+        name: input.name.clone(),
+        email: input.email.clone(),
+    };
+
+    let user = state
+        .repo
+        .edit_user(claims.jti, params)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    let data = User {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+    };
+    let data = serde_json::json!(data);
+
+    Ok(Json(data))
 }
 
 async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
