@@ -2,7 +2,6 @@ use std::env;
 mod entity;
 mod repository;
 
-use askama::Template;
 use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
 use axum::{
@@ -10,7 +9,7 @@ use axum::{
     extract::{Extension, Query, Request, State},
     http::StatusCode,
     middleware::Next,
-    response::{Html, IntoResponse, Redirect, Response},
+    response::{IntoResponse, Redirect, Response},
     routing::{get, post},
     Form, Json, Router,
 };
@@ -342,11 +341,6 @@ async fn authorize(
         return Err(StatusCode::FORBIDDEN);
     }
 
-    let template = AuthorizeTemplate {
-        state: input.state.clone(),
-        client_id: client.id.to_string(),
-    };
-
     let json = AuthorizeJson {
         client_id: client.id.to_string(),
         redirect_uri,
@@ -360,8 +354,15 @@ async fn authorize(
     //ssession.insert("auth", val).unwrap();
     let val = session.get::<String>("auth").unwrap();
     state.store.store_session(session).await.unwrap();
+
+    let tera = tera::Tera::new("templates/*").unwrap();
+
+    let mut context = tera::Context::new();
+    context.insert("client_id", &client.id.to_string());
+    context.insert("title", "Rust OAuth 2.0 Authorization");
     // ログインフォームを表示する
-    Ok((jar, HtmlTemplate(template)))
+    let output: Result<String, tera::Error> = tera.render("index.html", &context);
+    Ok((jar, axum::response::Html(output.unwrap())))
 }
 
 // ログインチェック
@@ -670,29 +671,4 @@ fn generate_random_string(len: usize) -> String {
         .take(len)
         .collect();
     String::from_utf8(random_bytes).unwrap()
-}
-
-#[derive(Template)]
-#[template(path = "authorize.html")]
-struct AuthorizeTemplate {
-    state: String,
-    client_id: String,
-}
-
-struct HtmlTemplate<T>(T);
-
-impl<T> IntoResponse for HtmlTemplate<T>
-where
-    T: Template,
-{
-    fn into_response(self) -> Response {
-        match self.0.render() {
-            Ok(html) => Html(html).into_response(),
-            Err(err) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to render template. Error: {}", err),
-            )
-                .into_response(),
-        }
-    }
 }
