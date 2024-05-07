@@ -152,6 +152,14 @@ async fn marshal_to_session<T: Serialize>(
     store.store_session(session_clone).await.unwrap();
 }
 
+async fn remove_session(store: &RedisSessionStore, session: &Session, key: String) {
+    let mut session_clone = session.clone();
+
+    session_clone.remove(&key.to_string());
+
+    store.store_session(session_clone).await.unwrap();
+}
+
 #[derive(Clone)]
 struct AppState {
     //session: SessionToken,
@@ -189,7 +197,13 @@ struct AuthorizeValue {
     redirect_uri: Option<String>,
 }
 
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize)]
+struct AuthorizationInputValue {
+    email: Option<String>,
+    password: Option<String>,
+}
+
+#[derive(Debug, Deserialize, Validate, Serialize)]
 struct AuthorizationInput {
     #[validate(length(min = 1, message = "Paramater 'email' can not be empty"))]
     #[validate(email)]
@@ -350,16 +364,19 @@ async fn authorize(
 
     marshal_to_session(&state.store, &session, "auth".to_string(), &json).await;
 
-    // リクエストパラメータをセッションに保存する
-    //ssession.insert("auth", val).unwrap();
-    let val = session.get::<String>("auth").unwrap();
-    state.store.store_session(session).await.unwrap();
+    let input_val: AuthorizationInputValue =
+        unmarshal_from_session(&session, "authorization_input".to_string()).await;
+
+    remove_session(&state.store, &session, "authorization_input".to_string()).await;
 
     let tera = tera::Tera::new("templates/*").unwrap();
 
     let mut context = tera::Context::new();
     context.insert("client_id", &client.id.to_string());
     context.insert("title", "Rust OAuth 2.0 Authorization");
+    context.insert("email", &input_val.email);
+    context.insert("password", &input_val.password);
+
     // ログインフォームを表示する
     let output: Result<String, tera::Error> = tera.render("index.html", &context);
     Ok((jar, axum::response::Html(output.unwrap())))
@@ -375,25 +392,36 @@ async fn authorize(
 async fn authorization(
     State(state): State<AppState>,
     Extension(session): Extension<Session>,
-    input: Form<AuthorizationInput>,
+    Form(input): Form<AuthorizationInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
+    let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
+
+    marshal_to_session(
+        &state.store,
+        &session,
+        "authorization_input".to_string(),
+        &input,
+    )
+    .await;
+
     if let Err(errors) = input.validate() {
-        println!("{:#?}", errors);
-        Ok(Redirect::to("/autorize"))
+        Ok(Redirect::to("/authorize"))
     } else {
-        let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
-        let user = state
+        let user_result = state
             .repo
             .find_user_by_email(input.email.to_string())
             .await
-            .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
-            .ok_or(StatusCode::FORBIDDEN)?; // TODO: redirect to authorize
+            .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+        let user = match user_result {
+            Some(u) => u,
+            None => return Ok(Redirect::to("authorization")),
+        };
 
         if !verify(&input.password, &user.password).unwrap() {
-            let pp = hash(&input.password, DEFAULT_COST).unwrap();
-            println!("password: {}, {}", pp, user.password);
-            return Err(StatusCode::FORBIDDEN); // TODO: redirect to authorize
+            return Ok(Redirect::to("authorization"));
         }
+
         let code = generate_random_string(32);
         let datetime = Local::now().naive_local().into();
         let expires_at = Local::now().naive_local() + Duration::hours(1);
