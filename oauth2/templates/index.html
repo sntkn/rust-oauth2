@@ -1,8 +1,4 @@
 <!DOCTYPE html>
-<!--[if lt IE 7]>      <html class="no-js lt-ie9 lt-ie8 lt-ie7"> <![endif]-->
-<!--[if IE 7]>         <html class="no-js lt-ie9 lt-ie8"> <![endif]-->
-<!--[if IE 8]>         <html class="no-js lt-ie9"> <![endif]-->
-<!--[if gt IE 8]>      <html class="no-js"> <!--<![endif]-->
 <html>
   <head>
     <meta charset="utf-8">
@@ -10,31 +6,25 @@
     <title>{{ title }}</title>
     <meta name="description" content="sample">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
   <body>
-    {{ client_id }}
+    <div class="container mx-auto max-w-sm mt-16">
+      <h1 class="text-3xl font-bold text-center">Login</h1>
 
-    <h1>Login</h1>
-    <form action="/authorization" method="post">
-      <div>
-        <input
-          type="text"
-          name="email"
-          value="{{ email }}"
-          placeholder="Please enter your email address"
-          autocomplete="off"
-        />
-      </div>
-      <div>
-        <input
-          type="password"
-          name="password"
-          value="{{ password }}"
-          placeholder="Password"
-          autocomplete="off"
-        />
-      </div>
-      <input type="submit" name="login" />
-    </form>
+      <form action="/authorization" method="post" class="mt-8">
+        <div class="mb-4">
+          <label for="email" class="block text-gray-700 font-bold">Email address</label>
+          <input type="email" id="email" name="email" value="{{ email }}" placeholder="Enter your email address" class="form-input w-full mt-1 p-1 border rounded-md shadow-sm">
+        </div>
+
+        <div class="mb-4">
+          <label for="password" class="block text-gray-700 font-bold">Password</label>
+          <input type="password" id="password" name="password" value="{{ password }}" placeholder="Enter your password" class="form-input w-full mt-1 p-1 border rounded-md shadow-sm">
+        </div>
+
+        <button type="submit" class="w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-md">Login</button>
+      </form>
+    </div>
   </body>
 </html>
