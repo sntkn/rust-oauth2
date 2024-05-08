@@ -75,7 +75,12 @@ async fn auth_middleware(
 ) -> Result<Response, StatusCode> {
     let headers = req.headers();
     // Authorization ヘッダからアクセストークン取得
-    let authorization = headers.get("Authorization").unwrap().to_str().unwrap();
+    let authorization = headers
+        .get("Authorization")
+        .ok_or(StatusCode::UNAUTHORIZED)?
+        .to_str()
+        .unwrap();
+
     let token = authorization.split(' ').last().unwrap();
 
     // JWTを解析
