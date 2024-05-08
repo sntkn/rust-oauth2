@@ -23,6 +23,7 @@ use jsonwebtoken::{
 use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde_json::Value;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use url::Url;
 use uuid::Uuid;
@@ -138,8 +139,20 @@ async fn session_middleware(
     Ok(next.run(req).await)
 }
 
-async fn unmarshal_from_session<T: DeserializeOwned>(session: &Session, key: String) -> T {
-    let sess_val = session.get::<String>(&key).unwrap_or("{}".to_string());
+async fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
+    session: &Session,
+    key: String,
+) -> T {
+    let sess_val =
+        session
+            .get::<String>(&key)
+            .unwrap_or_else(|| match serde_json::to_value(&T::default()) {
+                Ok(val) => match val {
+                    Value::Array(_) => "[]".to_string(),
+                    _ => "{}".to_string(),
+                },
+                Err(_) => "{}".to_string(),
+            });
     serde_json::from_str(&sess_val).unwrap()
 }
 
@@ -163,6 +176,43 @@ async fn remove_session(store: &RedisSessionStore, session: &Session, key: Strin
     session_clone.remove(&key.to_string());
 
     store.store_session(session_clone).await.unwrap();
+}
+
+struct FlashMessage<'a> {
+    store: &'a RedisSessionStore,
+    session: &'a Session,
+    messages: Vec<String>,
+}
+
+impl<'a> FlashMessage<'a> {
+    async fn new(store: &'a RedisSessionStore, session: &'a Session) -> FlashMessage<'a> {
+        FlashMessage {
+            store,
+            session,
+            messages: Vec::new(),
+        }
+    }
+
+    fn push(&mut self, message: String) {
+        self.messages.push(message);
+    }
+
+    async fn store(&mut self) {
+        marshal_to_session(
+            self.store,
+            self.session,
+            "flash_message".to_string(),
+            &self.messages,
+        )
+        .await;
+    }
+
+    async fn pull(&mut self) -> Vec<String> {
+        let val: Vec<String> =
+            unmarshal_from_session(self.session, "flash_message".to_string()).await;
+        remove_session(self.store, self.session, "flash_message".to_string()).await;
+        val
+    }
 }
 
 #[derive(Clone)]
@@ -194,7 +244,7 @@ struct AuthorizeInput {
     redirect_uri: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Default, Serialize)]
 struct AuthorizeValue {
     response_type: Option<String>,
     state: Option<String>,
@@ -202,7 +252,7 @@ struct AuthorizeValue {
     redirect_uri: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, Default)]
 struct AuthorizationInputValue {
     email: Option<String>,
     password: Option<String>,
@@ -375,6 +425,10 @@ async fn authorize(
 
     remove_session(&state.store, &session, "authorization_input".to_string()).await;
 
+    let mut flash_message = FlashMessage::new(&state.store, &session).await;
+
+    let messages = flash_message.pull().await;
+
     let tera = tera::Tera::new("templates/*").unwrap();
 
     let mut context = tera::Context::new();
@@ -382,6 +436,7 @@ async fn authorize(
     context.insert("title", "Rust OAuth 2.0 Authorization");
     context.insert("email", &input_val.email);
     context.insert("password", &input_val.password);
+    context.insert("flash_messages", &messages);
 
     // ログインフォームを表示する
     let output: Result<String, tera::Error> = tera.render("index.html", &context);
@@ -410,8 +465,15 @@ async fn authorization(
     )
     .await;
 
+    let mut flash_message = FlashMessage::new(&state.store, &session).await;
+
     if let Err(errors) = input.validate() {
-        println!("{:#?}", errors);
+        for (field, errors) in errors.field_errors() {
+            for error in errors {
+                flash_message.push(format!("{}: {}", field, error.code));
+            }
+        }
+        flash_message.store().await;
         Ok(Redirect::to("/authorize"))
     } else {
         let user_result = state
@@ -422,10 +484,17 @@ async fn authorization(
 
         let user = match user_result {
             Some(u) => u,
-            None => return Ok(Redirect::to("authorization")),
+            None => {
+                flash_message.push("Login failed: user not match".to_string());
+                flash_message.store().await;
+                return Ok(Redirect::to("authorization"));
+            }
         };
 
         if !verify(&input.password, &user.password).unwrap() {
+            flash_message.push("Login failed: password not match".to_string());
+            flash_message.store().await;
+
             return Ok(Redirect::to("authorization"));
         }
 
