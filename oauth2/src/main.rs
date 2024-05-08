@@ -14,7 +14,7 @@ use axum::{
     Form, Json, Router,
 };
 use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
-use bcrypt::{hash, verify, DEFAULT_COST};
+use bcrypt::verify;
 use chrono::{Duration, Local};
 use jsonwebtoken::{
     decode, encode, errors::Error as JwtError, Algorithm, DecodingKey, EncodingKey, Header,
@@ -337,6 +337,7 @@ async fn authorize(
     }
 
     if let Err(errors) = input.validate() {
+        println!("{:#?}", errors);
         return Err(StatusCode::UNAUTHORIZED);
     }
 
@@ -405,6 +406,7 @@ async fn authorization(
     .await;
 
     if let Err(errors) = input.validate() {
+        println!("{:#?}", errors);
         Ok(Redirect::to("/authorize"))
     } else {
         let user_result = state
