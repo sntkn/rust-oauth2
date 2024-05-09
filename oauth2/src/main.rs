@@ -178,6 +178,70 @@ async fn remove_session(store: &RedisSessionStore, session: &Session, key: Strin
     store.store_session(session_clone).await.unwrap();
 }
 
+//#[derive(Clone)]
+//struct SessionData {
+//    store: Arc<RedisSessionStore>,
+//    session: Session,
+//    jar: CookieJar,
+//}
+//
+//impl SessionData {
+//    async fn new(store: Arc<RedisSessionStore>, jar: CookieJar) -> SessionData {
+//        let session = Session::new();
+//        let cookie = {
+//            let cookie_value = store.store_session(session.clone()).await.unwrap().unwrap();
+//            let cookie_entity = EntityCookie::new("session_id", cookie_value);
+//            let cookie = jar.get("session_id").unwrap_or(&cookie_entity);
+//            cookie.clone()
+//        };
+//        let jar = jar.add(cookie.clone());
+//        let session = store
+//            .load_session(cookie.value().to_string())
+//            .await
+//            .unwrap()
+//            .unwrap();
+//        SessionData {
+//            store,
+//            session,
+//            jar,
+//        }
+//    }
+//
+//    async fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
+//        &mut self,
+//        key: String,
+//    ) -> T {
+//        let sess_val =
+//            self.session.get::<String>(&key).unwrap_or_else(|| {
+//                match serde_json::to_value(&T::default()) {
+//                    Ok(val) => match val {
+//                        Value::Array(_) => "[]".to_string(),
+//                        _ => "{}".to_string(),
+//                    },
+//                    Err(_) => "{}".to_string(),
+//                }
+//            });
+//        serde_json::from_str(&sess_val).unwrap()
+//    }
+//
+//    async fn marshal_to_session<T: Serialize>(&mut self, key: String, val: &T) {
+//        let v = serde_json::to_string(&val).unwrap();
+//        let mut session_clone = self.session.clone();
+//
+//        session_clone.insert(&key.to_string(), v).unwrap();
+//
+//        self.store.store_session(session_clone).await.unwrap();
+//    }
+//
+//    async fn remove_session(&mut self, key: String) {
+//        let mut session_clone = self.session.clone();
+//
+//        session_clone.remove(&key.to_string());
+//
+//        self.store.store_session(session_clone).await.unwrap();
+//    }
+//}
+
 struct FlashMessage<'a> {
     store: &'a RedisSessionStore,
     session: &'a Session,
