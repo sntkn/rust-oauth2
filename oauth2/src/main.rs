@@ -1,6 +1,7 @@
 use std::env;
 mod entity;
 mod repository;
+mod session_manager;
 
 use async_redis_session::RedisSessionStore;
 use async_session::{Session, SessionStore};
@@ -24,6 +25,7 @@ use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
+use session_manager::{manage_session, marshal_to_session, remove_session, unmarshal_from_session};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use url::Url;
 use uuid::Uuid;
@@ -116,66 +118,12 @@ async fn session_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let headers = req.headers();
-    let session = Session::new();
-    let jar = CookieJar::from_headers(headers);
-    let cookie = {
-        let cookie_value = state.store.store_session(session).await.unwrap().unwrap();
-        let cookie_entity = EntityCookie::new("session_id", cookie_value);
-        let cookie = jar.get("session_id").unwrap_or(&cookie_entity);
-        cookie.clone()
-    };
-    let jar = jar.add(cookie.clone());
-    let session = state
-        .store
-        .load_session(cookie.value().to_string())
-        .await
-        .unwrap()
-        .unwrap();
+    let (session, jar) = manage_session(&state.store, req.headers()).await;
 
     req.extensions_mut().insert(session);
     req.extensions_mut().insert(jar);
 
     Ok(next.run(req).await)
-}
-
-async fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
-    session: &Session,
-    key: String,
-) -> T {
-    let sess_val =
-        session
-            .get::<String>(&key)
-            .unwrap_or_else(|| match serde_json::to_value(&T::default()) {
-                Ok(val) => match val {
-                    Value::Array(_) => "[]".to_string(),
-                    _ => "{}".to_string(),
-                },
-                Err(_) => "{}".to_string(),
-            });
-    serde_json::from_str(&sess_val).unwrap()
-}
-
-async fn marshal_to_session<T: Serialize>(
-    store: &RedisSessionStore,
-    session: &Session,
-    key: String,
-    val: &T,
-) {
-    let v = serde_json::to_string(&val).unwrap();
-    let mut session_clone = session.clone();
-
-    session_clone.insert(&key.to_string(), v).unwrap();
-
-    store.store_session(session_clone).await.unwrap();
-}
-
-async fn remove_session(store: &RedisSessionStore, session: &Session, key: String) {
-    let mut session_clone = session.clone();
-
-    session_clone.remove(&key.to_string());
-
-    store.store_session(session_clone).await.unwrap();
 }
 
 //#[derive(Clone)]
