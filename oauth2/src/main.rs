@@ -4,7 +4,7 @@ mod repository;
 mod session_manager;
 
 use async_redis_session::RedisSessionStore;
-use async_session::{Session, SessionStore};
+use async_session::Session;
 use axum::{
     debug_handler,
     extract::{Extension, Query, Request, State},
@@ -14,7 +14,7 @@ use axum::{
     routing::{get, post},
     Form, Json, Router,
 };
-use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
+use axum_extra::extract::cookie::CookieJar;
 use bcrypt::verify;
 use chrono::{Duration, Local};
 use jsonwebtoken::{
@@ -23,8 +23,7 @@ use jsonwebtoken::{
 };
 use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::Value;
+use serde::{Deserialize, Serialize};
 use session_manager::{manage_session, marshal_to_session, remove_session, unmarshal_from_session};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use url::Url;
