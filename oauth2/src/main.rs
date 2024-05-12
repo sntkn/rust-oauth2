@@ -1,7 +1,4 @@
 use std::env;
-mod entity;
-mod repository;
-mod session_manager;
 
 use async_redis_session::RedisSessionStore;
 use async_session::Session;
@@ -29,6 +26,9 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use url::Url;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
+
+use oauth2::repository::repository;
+use oauth2::util::session_manager;
 
 #[tokio::main]
 async fn main() {
