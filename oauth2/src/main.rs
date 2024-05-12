@@ -27,7 +27,7 @@ use url::Url;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
-use oauth2::repository::repository;
+use oauth2::repository::db_repository;
 use oauth2::util::session_manager;
 
 #[tokio::main]
@@ -40,7 +40,7 @@ async fn main() {
     let store = RedisSessionStore::new("redis://localhost:6379/").unwrap();
 
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
-    let repo = repository::Repository::new(db_url).await.unwrap();
+    let repo = db_repository::Repository::new(db_url).await.unwrap();
 
     let state = AppState { store, repo };
 
@@ -230,7 +230,7 @@ impl<'a> FlashMessage<'a> {
 struct AppState {
     //session: SessionToken,
     store: RedisSessionStore,
-    repo: repository::Repository,
+    repo: db_repository::Repository,
 }
 
 #[derive(Debug, Deserialize, Validate)]
@@ -491,7 +491,7 @@ async fn authorization(
         let expires_at = Local::now().naive_local() + Duration::hours(1);
         let client_id = Uuid::parse_str(&auth.client_id.unwrap()).unwrap();
         let redirect_uri = auth.redirect_uri.unwrap();
-        let params = repository::CreateCodeParams {
+        let params = db_repository::CreateCodeParams {
             code: code.clone(),
             user_id: user.id,
             client_id,
@@ -536,7 +536,7 @@ async fn create_token(
         let token = generate_random_string(32);
         let token_expires_at = Local::now().naive_local() + Duration::minutes(10);
         let now = Local::now().naive_local().into();
-        let params = repository::CreateTokenParams {
+        let params = db_repository::CreateTokenParams {
             access_token: token.to_string(),
             user_id: code.user_id,
             client_id: code.client_id,
@@ -562,7 +562,7 @@ async fn create_token(
         let expires_at = Local::now().naive_local() + Duration::days(90);
         let now = Local::now().naive_local().into();
         let refresh_token = generate_random_string(64);
-        let params = repository::CreateRefreshTokenParams {
+        let params = db_repository::CreateRefreshTokenParams {
             refresh_token: refresh_token.to_string(),
             access_token: token.to_string(),
             expires_at: expires_at.into(),
@@ -604,7 +604,7 @@ async fn create_token(
         let new_access_token = generate_random_string(32);
         let token_expires_at = Local::now().naive_local() + Duration::minutes(10);
         let now = Local::now().naive_local().into();
-        let params = repository::CreateTokenParams {
+        let params = db_repository::CreateTokenParams {
             access_token: new_access_token.to_string(),
             user_id: old_token.user_id,
             client_id: old_token.client_id,
@@ -618,7 +618,7 @@ async fn create_token(
         let expires_at = Local::now().naive_local() + Duration::days(90);
         let now = Local::now().naive_local().into();
         let refresh_token = generate_random_string(64);
-        let params = repository::CreateRefreshTokenParams {
+        let params = db_repository::CreateRefreshTokenParams {
             refresh_token: refresh_token.to_string(),
             access_token: new_access_token.to_string(),
             expires_at: expires_at.into(),
