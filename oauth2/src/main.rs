@@ -27,8 +27,8 @@ use url::Url;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
-use oauth2::repository::db_repository;
-use oauth2::util::session_manager;
+use crate::repository::db_repository;
+use crate::util::session_manager;
 
 #[tokio::main]
 async fn main() {
