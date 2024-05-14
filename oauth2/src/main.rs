@@ -14,6 +14,7 @@ use axum::{
 use axum_extra::extract::cookie::CookieJar;
 use bcrypt::verify;
 use chrono::{Duration, Local};
+use flash_message::FlashMessage;
 use jsonwebtoken::{
     decode, encode, errors::Error as JwtError, Algorithm, DecodingKey, EncodingKey, Header,
     Validation,
@@ -27,8 +28,10 @@ use url::Url;
 use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
-use crate::repository::db_repository;
-use crate::util::session_manager;
+use oauth2::app_state::AppState;
+use oauth2::repository::db_repository;
+use oauth2::util::flash_message;
+use oauth2::util::session_manager;
 
 #[tokio::main]
 async fn main() {
@@ -188,50 +191,6 @@ async fn session_middleware(
 //        self.store.store_session(session_clone).await.unwrap();
 //    }
 //}
-
-struct FlashMessage<'a> {
-    store: &'a RedisSessionStore,
-    session: &'a Session,
-    messages: Vec<String>,
-}
-
-impl<'a> FlashMessage<'a> {
-    async fn new(store: &'a RedisSessionStore, session: &'a Session) -> FlashMessage<'a> {
-        FlashMessage {
-            store,
-            session,
-            messages: Vec::new(),
-        }
-    }
-
-    fn push(&mut self, message: String) {
-        self.messages.push(message);
-    }
-
-    async fn store(&mut self) {
-        marshal_to_session(
-            self.store,
-            self.session,
-            "flash_message".to_string(),
-            &self.messages,
-        )
-        .await;
-    }
-
-    async fn pull(&mut self) -> Vec<String> {
-        let val: Vec<String> =
-            unmarshal_from_session(self.session, "flash_message".to_string()).await;
-        remove_session(self.store, self.session, "flash_message".to_string()).await;
-        val
-    }
-}
-
-#[derive(Clone)]
-struct AppState {
-    //session: SessionToken,
-    store: RedisSessionStore,
-    repo: db_repository::Repository,
-}
 
 #[derive(Debug, Deserialize, Validate)]
 struct AuthorizeInput {
