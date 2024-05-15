@@ -15,10 +15,8 @@ use axum_extra::extract::cookie::CookieJar;
 use bcrypt::verify;
 use chrono::{Duration, Local};
 use flash_message::FlashMessage;
-use jsonwebtoken::{
-    decode, encode, errors::Error as JwtError, Algorithm, DecodingKey, EncodingKey, Header,
-    Validation,
-};
+use jsonwebtoken::DecodingKey;
+use jwt::{decode_token, generate_token, TokenClaims};
 use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -31,6 +29,7 @@ use validator::{Validate, ValidationError};
 use oauth2::app_state::AppState;
 use oauth2::repository::db_repository;
 use oauth2::util::flash_message;
+use oauth2::util::jwt;
 use oauth2::util::session_manager;
 
 #[tokio::main]
@@ -90,10 +89,9 @@ async fn auth_middleware(
 
     // JWTを解析
     let decoding_key = DecodingKey::from_secret(b"some-secret");
-    let token_message =
-        decode::<TokenClaims>(token, &decoding_key, &Validation::new(Algorithm::HS256))
-            .or(Err(StatusCode::UNAUTHORIZED))?
-            .claims;
+    let token_message = decode_token(token, &decoding_key)
+        .or(Err(StatusCode::UNAUTHORIZED))?
+        .claims;
 
     // JWTの有効期限をチェック
     if token_message.exp < Local::now().naive_local().and_utc().timestamp() {
@@ -688,14 +686,6 @@ async fn introspect(
     Ok(Json(claims))
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-struct TokenClaims {
-    sub: String, // access_token
-    jti: Uuid,   // user_id
-    exp: i64,
-    iat: i64,
-}
-
 #[derive(Serialize)]
 struct TokenResponse {
     access_token: String,
@@ -709,11 +699,6 @@ struct UserResponse {
     id: String,
     name: String,
     email: String,
-}
-
-fn generate_token<T: Serialize>(claims: &T, secret: &[u8]) -> Result<String, JwtError> {
-    let encoding_key = EncodingKey::from_secret(secret);
-    encode(&Header::default(), claims, &encoding_key)
 }
 
 fn generate_random_string(len: usize) -> String {
