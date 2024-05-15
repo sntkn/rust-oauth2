@@ -1,34 +1,28 @@
 use std::env;
 
 use async_redis_session::RedisSessionStore;
-use async_session::Session;
 use axum::{
     debug_handler,
-    extract::{Extension, Query, Request, State},
+    extract::{Extension, Request, State},
     http::StatusCode,
     middleware::Next,
-    response::{IntoResponse, Redirect, Response},
+    response::{IntoResponse, Response},
     routing::{get, post},
-    Form, Json, Router,
+    Json, Router,
 };
-use axum_extra::extract::cookie::CookieJar;
-use bcrypt::verify;
 use chrono::{Duration, Local};
-use flash_message::FlashMessage;
 use jsonwebtoken::DecodingKey;
 use jwt::{decode_token, generate_token, TokenClaims};
+use oauth2::handler::{authorization, authorize};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
-use session_manager::{manage_session, marshal_to_session, remove_session, unmarshal_from_session};
+use session_manager::manage_session;
 use str::generate_random_string;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use url::Url;
-use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
 use oauth2::app_state::AppState;
 use oauth2::repository::db_repository;
-use oauth2::util::flash_message;
 use oauth2::util::jwt;
 use oauth2::util::session_manager;
 use oauth2::util::str;
@@ -48,8 +42,8 @@ async fn main() {
     let state = AppState { store, repo };
 
     let session_router = Router::new()
-        .route("/authorize", get(authorize)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
-        .route("/authorization", post(authorization))
+        .route("/authorize", get(authorize::invoke)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
+        .route("/authorization", post(authorization::invoke))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             session_middleware,
@@ -313,160 +307,6 @@ fn uuid(id: &str) -> Result<(), ValidationError> {
     }
 
     Ok(())
-}
-
-async fn authorize(
-    State(state): State<AppState>,
-    Extension(session): Extension<Session>,
-    Extension(jar): Extension<CookieJar>,
-    Query(mut input): Query<AuthorizeInput>,
-) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
-    // セッションをまず取得して、さらにリクエストパラメータがあったら上書きする
-    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
-
-    if input.response_type.is_empty() && auth_val.response_type.is_some() {
-        input.response_type = auth_val.response_type.unwrap();
-    }
-    if input.state.is_empty() && auth_val.state.is_some() {
-        input.state = auth_val.state.unwrap();
-    }
-    if input.client_id.is_empty() && auth_val.client_id.is_some() {
-        input.client_id = auth_val.client_id.unwrap();
-    }
-    if input.redirect_uri.is_empty() && auth_val.redirect_uri.is_some() {
-        input.redirect_uri = auth_val.redirect_uri.unwrap();
-    }
-
-    if let Err(errors) = input.validate() {
-        println!("{:#?}", errors);
-        return Err(StatusCode::UNAUTHORIZED);
-    }
-
-    let parsed_uuid = Uuid::parse_str(&input.client_id).unwrap();
-    // client_id が そんざいすること
-    let client = state
-        .repo
-        .find_client(parsed_uuid)
-        .await
-        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
-        .ok_or(StatusCode::FORBIDDEN)?;
-
-    // redirect_uri が一致すること
-    let redirect_uri = input.redirect_uri;
-    if redirect_uri != client.redirect_uris {
-        return Err(StatusCode::FORBIDDEN);
-    }
-
-    let json = AuthorizeJson {
-        client_id: client.id.to_string(),
-        redirect_uri,
-        state: input.state,
-        response_type: input.response_type,
-    };
-
-    marshal_to_session(&state.store, &session, "auth".to_string(), &json).await;
-
-    let input_val: AuthorizationInputValue =
-        unmarshal_from_session(&session, "authorization_input".to_string()).await;
-
-    remove_session(&state.store, &session, "authorization_input".to_string()).await;
-
-    let mut flash_message = FlashMessage::new(&state.store, &session).await;
-
-    let messages = flash_message.pull().await;
-
-    let tera = tera::Tera::new("templates/*").unwrap();
-
-    let mut context = tera::Context::new();
-    context.insert("client_id", &client.id.to_string());
-    context.insert("title", "Rust OAuth 2.0 Authorization");
-    context.insert("email", &input_val.email);
-    context.insert("password", &input_val.password);
-    context.insert("flash_messages", &messages);
-
-    // ログインフォームを表示する
-    let output: Result<String, tera::Error> = tera.render("index.html", &context);
-    Ok((jar, axum::response::Html(output.unwrap())))
-}
-
-// ログインチェック
-// ログイン NG の場合、ログインフォームにリダイレクト
-// OK の場合、セッションを発行しログイン状態にする
-// 認可コードを生成する
-// 認可コードとstate を保存する
-// redirect_uri に認可コードと共にリダイレクトする
-#[debug_handler]
-async fn authorization(
-    State(state): State<AppState>,
-    Extension(session): Extension<Session>,
-    Form(input): Form<AuthorizationInput>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
-
-    marshal_to_session(
-        &state.store,
-        &session,
-        "authorization_input".to_string(),
-        &input,
-    )
-    .await;
-
-    let mut flash_message = FlashMessage::new(&state.store, &session).await;
-
-    if let Err(errors) = input.validate() {
-        for (field, errors) in errors.field_errors() {
-            for error in errors {
-                flash_message.push(format!("{}: {}", field, error.code));
-            }
-        }
-        flash_message.store().await;
-        Ok(Redirect::to("/authorize"))
-    } else {
-        let user_result = state
-            .repo
-            .find_user_by_email(input.email.to_string())
-            .await
-            .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
-
-        let user = match user_result {
-            Some(u) => u,
-            None => {
-                flash_message.push("Login failed: user not match".to_string());
-                flash_message.store().await;
-                return Ok(Redirect::to("authorization"));
-            }
-        };
-
-        if !verify(&input.password, &user.password).unwrap() {
-            flash_message.push("Login failed: password not match".to_string());
-            flash_message.store().await;
-
-            return Ok(Redirect::to("authorization"));
-        }
-
-        let code = generate_random_string(32);
-        let datetime = Local::now().naive_local().into();
-        let expires_at = Local::now().naive_local() + Duration::hours(1);
-        let client_id = Uuid::parse_str(&auth.client_id.unwrap()).unwrap();
-        let redirect_uri = auth.redirect_uri.unwrap();
-        let params = db_repository::CreateCodeParams {
-            code: code.clone(),
-            user_id: user.id,
-            client_id,
-            expires_at: expires_at.into(),
-            redirect_uri: redirect_uri.clone(),
-            created_at: datetime,
-            updated_at: datetime,
-        };
-
-        let _ = state.repo.create_code(params).await.unwrap(); // TODO: check
-
-        let qs = vec![("code", code.to_string())];
-        let url = Url::parse_with_params(&redirect_uri, qs).unwrap();
-
-        //println!("{:#?}", auth);
-        Ok(Redirect::to(url.as_ref()))
-    }
 }
 
 #[debug_handler]
