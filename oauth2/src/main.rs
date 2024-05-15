@@ -17,10 +17,10 @@ use chrono::{Duration, Local};
 use flash_message::FlashMessage;
 use jsonwebtoken::DecodingKey;
 use jwt::{decode_token, generate_token, TokenClaims};
-use rand::{distributions::Alphanumeric, Rng};
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use session_manager::{manage_session, marshal_to_session, remove_session, unmarshal_from_session};
+use str::generate_random_string;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use url::Url;
 use uuid::Uuid;
@@ -31,6 +31,7 @@ use oauth2::repository::db_repository;
 use oauth2::util::flash_message;
 use oauth2::util::jwt;
 use oauth2::util::session_manager;
+use oauth2::util::str;
 
 #[tokio::main]
 async fn main() {
@@ -699,12 +700,4 @@ struct UserResponse {
     id: String,
     name: String,
     email: String,
-}
-
-fn generate_random_string(len: usize) -> String {
-    let random_bytes: Vec<u8> = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(len)
-        .collect();
-    String::from_utf8(random_bytes).unwrap()
 }
