@@ -12,17 +12,14 @@ use axum::{
 use chrono::Local;
 use jsonwebtoken::DecodingKey;
 use jwt::{decode_token, TokenClaims};
-use oauth2::handler::{authorization, authorize, create_token};
-use serde::{Deserialize, Serialize};
+use oauth2::handler::{authorization, authorize, create_token, me};
 use session_manager::manage_session;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
-use validator::Validate;
 
 use oauth2::app_state::AppState;
 use oauth2::repository::db_repository;
 use oauth2::util::jwt;
 use oauth2::util::session_manager;
-use oauth2::util::str;
 
 #[tokio::main]
 async fn main() {
@@ -47,7 +44,7 @@ async fn main() {
         ));
     let token_router = Router::new().route("/token", post(create_token::invoke));
     let auth_router = Router::new()
-        .route("/me", get(me).put(edit_user))
+        .route("/me", get(me::invoke))
         .route("/signout", post(signout))
         .route("/introspect", post(introspect))
         .layer(axum::middleware::from_fn_with_state(
@@ -118,65 +115,6 @@ async fn session_middleware(
     Ok(next.run(req).await)
 }
 
-#[derive(Debug, Deserialize, Validate)]
-struct EditUserInput {
-    #[validate(length(
-        min = 1,
-        max = 100,
-        message = "Parameter 'name' must be between 1 and 100 characters"
-    ))]
-    name: String,
-}
-
-#[derive(Serialize)]
-struct AuthorizeJson {
-    client_id: String,
-    redirect_uri: String,
-    state: String,
-    response_type: String,
-}
-
-async fn me(
-    State(state): State<AppState>,
-    Extension(claims): Extension<TokenClaims>,
-) -> Result<impl IntoResponse, StatusCode> {
-    // ユーザー情報取得
-    let user = state
-        .repo
-        .find_user(claims.jti)
-        .await
-        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
-        .ok_or(StatusCode::UNAUTHORIZED)?;
-
-    // ユーザー情報返却
-    let response = UserResponse {
-        id: user.id.to_string(),
-        name: user.name.to_string(),
-        email: user.email.to_string(),
-    };
-    Ok(Json(response))
-}
-
-async fn edit_user(
-    State(state): State<AppState>,
-    Extension(claims): Extension<TokenClaims>,
-    input: Json<EditUserInput>,
-) -> Result<impl IntoResponse, StatusCode> {
-    let user = state
-        .repo
-        .edit_user(claims.jti, input.name.to_string())
-        .await
-        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
-
-    // ユーザー情報返却
-    let response = UserResponse {
-        id: user.id.to_string(),
-        name: user.name.to_string(),
-        email: user.email.to_string(),
-    };
-    Ok(Json(response))
-}
-
 async fn signout(
     State(state): State<AppState>,
     Extension(claims): Extension<TokenClaims>,
@@ -202,11 +140,4 @@ async fn introspect(
     Extension(claims): Extension<TokenClaims>,
 ) -> Result<impl IntoResponse, StatusCode> {
     Ok(Json(claims))
-}
-
-#[derive(Serialize)]
-struct UserResponse {
-    id: String,
-    name: String,
-    email: String,
 }
