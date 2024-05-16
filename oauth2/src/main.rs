@@ -2,17 +2,17 @@ use std::env;
 
 use async_redis_session::RedisSessionStore;
 use axum::{
-    extract::{Extension, Request, State},
+    extract::{Request, State},
     http::StatusCode,
     middleware::Next,
-    response::{IntoResponse, Response},
+    response::Response,
     routing::{get, post},
-    Json, Router,
+    Router,
 };
 use chrono::Local;
 use jsonwebtoken::DecodingKey;
-use jwt::{decode_token, TokenClaims};
-use oauth2::handler::{authorization, authorize, create_token, introspect, me};
+use jwt::decode_token;
+use oauth2::handler::{authorization, authorize, create_token, introspect, me, signout};
 use session_manager::manage_session;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -45,7 +45,7 @@ async fn main() {
     let token_router = Router::new().route("/token", post(create_token::invoke));
     let auth_router = Router::new()
         .route("/me", get(me::invoke))
-        .route("/signout", post(signout))
+        .route("/signout", post(signout::invoke))
         .route("/introspect", post(introspect::invoke))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
@@ -113,25 +113,4 @@ async fn session_middleware(
     req.extensions_mut().insert(jar);
 
     Ok(next.run(req).await)
-}
-
-async fn signout(
-    State(state): State<AppState>,
-    Extension(claims): Extension<TokenClaims>,
-) -> Result<impl IntoResponse, StatusCode> {
-    // アクセストークンを破棄
-    state
-        .repo
-        .revoke_token(claims.sub.to_string())
-        .await
-        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
-
-    // リフレッシュトークンを破棄
-    state
-        .repo
-        .revoke_refresh_token_by_token(claims.sub.to_string())
-        .await
-        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
-
-    Ok(())
 }
