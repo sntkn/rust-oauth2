@@ -12,7 +12,7 @@ use axum::{
 use chrono::Local;
 use jsonwebtoken::DecodingKey;
 use jwt::{decode_token, TokenClaims};
-use oauth2::handler::{authorization, authorize, create_token, me};
+use oauth2::handler::{authorization, authorize, create_token, introspect, me};
 use session_manager::manage_session;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
@@ -46,7 +46,7 @@ async fn main() {
     let auth_router = Router::new()
         .route("/me", get(me::invoke))
         .route("/signout", post(signout))
-        .route("/introspect", post(introspect))
+        .route("/introspect", post(introspect::invoke))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
@@ -134,10 +134,4 @@ async fn signout(
         .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
 
     Ok(())
-}
-
-async fn introspect(
-    Extension(claims): Extension<TokenClaims>,
-) -> Result<impl IntoResponse, StatusCode> {
-    Ok(Json(claims))
 }
