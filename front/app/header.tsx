@@ -2,13 +2,15 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation';
 import { User } from '../entity'
-
 import { handleLogout, getUser } from '../lib/serverActions';
+
 const Header = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isMenuOpen, setIsMenuOpen] = useState(false); // メニューの開閉状態を管理
+  const router = useRouter();
 
   useEffect(() => {
     (async () => {
@@ -29,8 +31,10 @@ const Header = () => {
     (async () => {
       const res = await handleLogout()
       if (res) {
+        toggleMenu()
         setUser(null)
         setIsLoggedIn(!!user)
+        router.push('/')
       }
     })()
   }
@@ -73,9 +77,11 @@ const Header = () => {
         </div>
         <nav className={`absolute right-2 top-8 mt-4 bg-white rounded-lg shadow ${isMenuOpen ? "block" : "hidden"}`}>
           <ul className="flex flex-col text-gray-800 py-4">
-            <li className="hover:bg-gray-300"><Link href="/user" className="block px-8 py-2">User</Link></li>
-            <li className="hover:bg-gray-300"><a className="block px-8 py-2" href="/about">About</a></li>
-            <li className="hover:bg-gray-300"><a className="block px-8 py-2" href="/contact">Contact</a></li>
+            {isLoggedIn && user && (
+              <li className="hover:bg-gray-300"><Link href="/user" onClick={toggleMenu} className="block px-8 py-2">User</Link></li>
+            )}
+            <li className="hover:bg-gray-300" onClick={toggleMenu}><a className="block px-8 py-2" href="/about">About</a></li>
+            <li className="hover:bg-gray-300" onClick={toggleMenu}><a className="block px-8 py-2" href="/contact">Contact</a></li>
             {isLoggedIn && user && (
               <li className="hover:bg-gray-300">
                 <button onClick={handleLogoutClick} className="block px-8 py-2">
