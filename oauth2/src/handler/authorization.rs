@@ -14,13 +14,14 @@ use session_manager::{marshal_to_session, unmarshal_from_session};
 use str::generate_random_string;
 use url::Url;
 use uuid::Uuid;
-use validator::{Validate, ValidationError};
+use validator::Validate;
 
 use crate::app_state::AppState;
 use crate::repository::db_repository;
 use crate::util::flash_message;
 use crate::util::session_manager;
 use crate::util::str;
+use crate::validation::validate_password;
 
 #[derive(Debug, Deserialize, Serialize, Default)]
 struct AuthorizationInputValue {
@@ -37,25 +38,6 @@ pub struct AuthorizationInput {
     #[validate(length(min = 1, message = "Paramater 'password' can not be empty"))]
     #[validate(custom(function = "validate_password"))]
     password: String,
-}
-
-fn validate_password(password: &str) -> Result<(), ValidationError> {
-    let mut has_whitespace = false;
-    let mut has_upper = false;
-    let mut has_lower = false;
-    let mut has_digit = false;
-
-    for c in password.chars() {
-        has_whitespace |= c.is_whitespace();
-        has_lower |= c.is_lowercase();
-        has_upper |= c.is_uppercase();
-        has_digit |= c.is_ascii_digit();
-    }
-    if !has_whitespace && has_upper && has_lower && has_digit && password.len() >= 8 {
-        Ok(())
-    } else {
-        Err(ValidationError::new("Password Validation Failed"))
-    }
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]

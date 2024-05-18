@@ -1,20 +1,20 @@
 use axum::{debug_handler, extract::State, http::StatusCode, response::IntoResponse, Json};
 use chrono::{Duration, Local};
 use jwt::{generate_token, TokenClaims};
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use str::generate_random_string;
-use validator::{Validate, ValidationError};
+use validator::Validate;
 
 use crate::app_state::AppState;
 use crate::repository::db_repository;
 use crate::util::jwt;
 use crate::util::str;
+use crate::validation::validate_uuid;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct CreateTokenInput {
     #[serde(default)]
-    #[validate(custom(function = "uuid"))]
+    #[validate(custom(function = "validate_uuid"))]
     code: String,
 
     #[serde(default)]
@@ -24,21 +24,6 @@ pub struct CreateTokenInput {
     #[serde(default)]
     #[validate(length(min = 1, message = "Paramater 'refresh_token' can not be empty"))]
     refresh_token: String,
-}
-
-fn uuid(id: &str) -> Result<(), ValidationError> {
-    // Define the regular expression pattern for UUIDv4
-    let pattern =
-        Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-            .expect("Failed to compile UUID regex pattern");
-
-    if !pattern.is_match(id) {
-        let mut error = ValidationError::new("Invalid UUID format");
-        error.add_param(std::borrow::Cow::Borrowed("pattern"), &pattern.to_string());
-        return Err(error);
-    }
-
-    Ok(())
 }
 
 #[derive(Serialize)]

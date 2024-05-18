@@ -7,7 +7,6 @@ use axum::{
 };
 use axum_extra::extract::cookie::CookieJar;
 use flash_message::FlashMessage;
-use regex::Regex;
 use serde::{Deserialize, Serialize};
 use session_manager::{marshal_to_session, remove_session, unmarshal_from_session};
 use uuid::Uuid;
@@ -16,12 +15,13 @@ use validator::{Validate, ValidationError};
 use crate::app_state::AppState;
 use crate::util::flash_message;
 use crate::util::session_manager;
+use crate::validation::{validate_code, validate_uuid};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct AuthorizeInput {
     #[serde(default)]
     #[validate(length(min = 1, message = "Paramater 'response_type' can not be empty"))]
-    #[validate(custom(function = "match_code"))]
+    #[validate(custom(function = "validate_code"))]
     response_type: String,
 
     #[serde(default)]
@@ -30,38 +30,13 @@ pub struct AuthorizeInput {
 
     #[serde(default)]
     #[validate(length(min = 1, message = "Paramater 'client_id' can not be empty"))]
-    #[validate(custom(function = "uuid"))]
+    #[validate(custom(function = "validate_uuid"))]
     client_id: String,
 
     #[serde(default)]
     #[validate(length(min = 1, message = "Paramater 'redirect_uri' can not be empty"))]
     #[validate(url)]
     redirect_uri: String,
-}
-
-fn match_code(v: &str) -> Result<(), ValidationError> {
-    if v == "code" {
-        Ok(())
-    } else {
-        Err(ValidationError::new(
-            "Paramater 'response_type' should be 'code'",
-        ))
-    }
-}
-
-fn uuid(id: &str) -> Result<(), ValidationError> {
-    // Define the regular expression pattern for UUIDv4
-    let pattern =
-        Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$")
-            .expect("Failed to compile UUID regex pattern");
-
-    if !pattern.is_match(id) {
-        let mut error = ValidationError::new("Invalid UUID format");
-        error.add_param(std::borrow::Cow::Borrowed("pattern"), &pattern.to_string());
-        return Err(error);
-    }
-
-    Ok(())
 }
 
 #[derive(Debug, Deserialize, Default, Serialize)]
