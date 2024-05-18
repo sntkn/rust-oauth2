@@ -65,10 +65,17 @@ impl Repository {
         let id = Uuid::new_v4();
         let hashed_password = hash(password, DEFAULT_COST)
             .map_err(|_| DbErr::Custom("Error hashing password.".to_owned()))?;
+        let name = match email.find('@') {
+            Some(at_pos) => {
+                // `@`の前の部分を取得
+                &email[..at_pos]
+            }
+            None => return Err(DbErr::Custom("Error name not found.".to_owned())),
+        };
 
         let user = users::ActiveModel {
             id: ActiveValue::set(id),
-            name: ActiveValue::set("".to_string()),
+            name: ActiveValue::set(name.to_string()),
             email: ActiveValue::set(email),
             password: ActiveValue::set(hashed_password),
             created_at: ActiveValue::set(Some(Local::now().naive_local())),
