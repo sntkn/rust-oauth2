@@ -6,7 +6,6 @@ use axum::{
     Form,
 };
 use axum_extra::extract::cookie::CookieJar;
-use chrono::{Duration, Local};
 use flash_message::FlashMessage;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -15,10 +14,8 @@ use uuid::Uuid;
 use validator::{Validate, ValidationError};
 
 use crate::app_state::AppState;
-use crate::repository::db_repository;
 use crate::util::flash_message;
 use crate::util::session_manager;
-use crate::util::str::generate_random_string;
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct AuthorizeInput {
