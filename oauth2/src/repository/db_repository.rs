@@ -1,4 +1,5 @@
 use crate::entity::{oauth2_clients, oauth2_codes, oauth2_refresh_tokens, oauth2_tokens, users};
+use bcrypt::{hash, DEFAULT_COST};
 use chrono::{Local, NaiveDateTime};
 use sea_orm::*;
 use uuid::Uuid;
@@ -54,6 +55,27 @@ impl Repository {
 
     pub async fn find_user(&self, id: Uuid) -> Result<Option<users::Model>, DbErr> {
         users::Entity::find_by_id(id).one(&self.db).await
+    }
+
+    pub async fn create_user(
+        &self,
+        email: String,
+        password: String,
+    ) -> Result<users::Model, DbErr> {
+        let id = Uuid::new_v4();
+        let hashed_password = hash(password, DEFAULT_COST)
+            .map_err(|_| DbErr::Custom("Error hashing password.".to_owned()))?;
+
+        let user = users::ActiveModel {
+            id: ActiveValue::set(id),
+            name: ActiveValue::set("".to_string()),
+            email: ActiveValue::set(email),
+            password: ActiveValue::set(hashed_password),
+            created_at: ActiveValue::set(Some(Local::now().naive_local())),
+            updated_at: ActiveValue::set(Some(Local::now().naive_local())),
+        };
+
+        user.insert(&self.db).await
     }
 
     pub async fn edit_user(&self, id: Uuid, name: String) -> Result<users::Model, DbErr> {

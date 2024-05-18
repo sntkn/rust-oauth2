@@ -8,7 +8,7 @@ use axum::{
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use oauth2::app_state::AppState;
-use oauth2::handler::{authorization, authorize, create_token, introspect, me, signout};
+use oauth2::handler::{authorization, authorize, create_token, introspect, me, signout, signup};
 use oauth2::middleware;
 use oauth2::repository::db_repository;
 
@@ -29,6 +29,8 @@ async fn main() {
     let session_router = Router::new()
         .route("/authorize", get(authorize::invoke)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization::invoke))
+        .route("/signup", get(signup::new))
+        .route("/signup", post(signup::create))
         .layer(axum::middleware::from_fn_with_state(
             state.clone(),
             middleware::session_middleware,
