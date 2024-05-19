@@ -15,7 +15,7 @@ use validator::{Validate, ValidationError};
 use crate::app_state::AppState;
 use crate::util::flash_message;
 use crate::util::session_manager;
-use crate::validation::{validate_code, validate_uuid};
+use crate::validation::{validate_code, validate_password, validate_uuid};
 
 #[derive(Debug, Deserialize, Validate)]
 pub struct AuthorizeInput {
@@ -48,7 +48,7 @@ struct AuthorizeValue {
 }
 
 #[derive(Debug, Deserialize, Serialize, Default)]
-struct AuthorizationInputValue {
+struct SingupInputValue {
     email: Option<String>,
     password: Option<String>,
 }
@@ -114,7 +114,7 @@ pub async fn new(
 
     marshal_to_session(&state.store, &session, "auth".to_string(), &json).await;
 
-    let input_val: AuthorizationInputValue =
+    let input_val: SingupInputValue =
         unmarshal_from_session(&session, "signup_input".to_string()).await;
 
     remove_session(&state.store, &session, "signup_input".to_string()).await;
@@ -187,25 +187,5 @@ pub async fn create(
         .await
         .unwrap(); // TODO: check
 
-    //println!("{:#?}", auth);
     Ok(Redirect::to("/signup/complete"))
-}
-
-fn validate_password(password: &str) -> Result<(), ValidationError> {
-    let mut has_whitespace = false;
-    let mut has_upper = false;
-    let mut has_lower = false;
-    let mut has_digit = false;
-
-    for c in password.chars() {
-        has_whitespace |= c.is_whitespace();
-        has_lower |= c.is_lowercase();
-        has_upper |= c.is_uppercase();
-        has_digit |= c.is_ascii_digit();
-    }
-    if !has_whitespace && has_upper && has_lower && has_digit && password.len() >= 8 {
-        Ok(())
-    } else {
-        Err(ValidationError::new("Password Validation Failed"))
-    }
 }
