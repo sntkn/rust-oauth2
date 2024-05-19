@@ -120,7 +120,7 @@ pub async fn invoke(
 
     let messages = flash_message.pull().await;
 
-    let tera = tera::Tera::new("templates/*").unwrap();
+    let tera = tera::Tera::new("templates/**/*").unwrap();
 
     let mut context = tera::Context::new();
     context.insert("client_id", &client.id.to_string());
@@ -130,6 +130,11 @@ pub async fn invoke(
     context.insert("flash_messages", &messages);
 
     // ログインフォームを表示する
-    let output: Result<String, tera::Error> = tera.render("index.html", &context);
-    Ok((jar, axum::response::Html(output.unwrap())))
+    match tera.render("index.html", &context) {
+        Ok(output) => Ok((jar, axum::response::Html(output))),
+        Err(e) => {
+            eprintln!("Error rendering template: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }

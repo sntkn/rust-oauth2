@@ -10,7 +10,7 @@ use flash_message::FlashMessage;
 use serde::{Deserialize, Serialize};
 use session_manager::{marshal_to_session, remove_session, unmarshal_from_session};
 use uuid::Uuid;
-use validator::{Validate, ValidationError};
+use validator::Validate;
 
 use crate::app_state::AppState;
 use crate::util::flash_message;
@@ -123,7 +123,7 @@ pub async fn new(
 
     let messages = flash_message.pull().await;
 
-    let tera = tera::Tera::new("templates/*").unwrap();
+    let tera = tera::Tera::new("templates/**/*").unwrap();
 
     let mut context = tera::Context::new();
     context.insert("client_id", &client.id.to_string());
@@ -133,8 +133,13 @@ pub async fn new(
     context.insert("flash_messages", &messages);
 
     // サインアップフォームを表示する
-    let output: Result<String, tera::Error> = tera.render("signup/new.html", &context);
-    Ok((jar, axum::response::Html(output.unwrap())))
+    match tera.render("signup/new.html", &context) {
+        Ok(output) => Ok((jar, axum::response::Html(output))),
+        Err(e) => {
+            eprintln!("Error rendering template: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, Validate, Serialize)]
@@ -198,7 +203,7 @@ pub async fn complete(
     Extension(session): Extension<Session>,
     Extension(jar): Extension<CookieJar>,
 ) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
-    let tera = tera::Tera::new("templates/*").unwrap();
+    let tera = tera::Tera::new("templates/**/*").unwrap();
     let mut context = tera::Context::new();
 
     // TODO ログイン中は弾く
@@ -207,6 +212,12 @@ pub async fn complete(
     let mut flash_message = FlashMessage::new(&state.store, &session).await;
     let messages = flash_message.pull().await;
     context.insert("flash_messages", &messages);
-    let output: Result<String, tera::Error> = tera.render("signup/complete.html", &context);
-    Ok((jar, axum::response::Html(output.unwrap())))
+
+    match tera.render("signup/complete.html", &context) {
+        Ok(output) => Ok((jar, axum::response::Html(output))),
+        Err(e) => {
+            eprintln!("Error rendering template: {}", e);
+            Err(StatusCode::INTERNAL_SERVER_ERROR)
+        }
+    }
 }
