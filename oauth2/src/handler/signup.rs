@@ -203,14 +203,15 @@ pub async fn complete(
     Extension(session): Extension<Session>,
     Extension(jar): Extension<CookieJar>,
 ) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
-    let tera = tera::Tera::new("templates/**/*").unwrap();
-    let mut context = tera::Context::new();
-
     // TODO ログイン中は弾く
     // TODO コンプリートフラグのチェック
 
     let mut flash_message = FlashMessage::new(&state.store, &session).await;
+
+    let tera = tera::Tera::new("templates/**/*").unwrap();
+    let mut context = tera::Context::new();
     let messages = flash_message.pull().await;
+    context.insert("title", "Rust OAuth 2.0 Authorization");
     context.insert("flash_messages", &messages);
 
     match tera.render("signup/complete.html", &context) {
