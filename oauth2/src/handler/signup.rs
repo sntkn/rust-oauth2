@@ -133,7 +133,7 @@ pub async fn new(
     context.insert("flash_messages", &messages);
 
     // サインアップフォームを表示する
-    let output: Result<String, tera::Error> = tera.render("signup.html", &context);
+    let output: Result<String, tera::Error> = tera.render("signup/new.html", &context);
     Ok((jar, axum::response::Html(output.unwrap())))
 }
 
@@ -187,5 +187,26 @@ pub async fn create(
         .await
         .unwrap(); // TODO: check
 
+    flash_message.push("Signup Complete".to_string());
+    flash_message.store().await;
+
     Ok(Redirect::to("/signup/complete"))
+}
+
+pub async fn complete(
+    State(state): State<AppState>,
+    Extension(session): Extension<Session>,
+    Extension(jar): Extension<CookieJar>,
+) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
+    let tera = tera::Tera::new("templates/*").unwrap();
+    let mut context = tera::Context::new();
+
+    // TODO ログイン中は弾く
+    // TODO コンプリートフラグのチェック
+
+    let mut flash_message = FlashMessage::new(&state.store, &session).await;
+    let messages = flash_message.pull().await;
+    context.insert("flash_messages", &messages);
+    let output: Result<String, tera::Error> = tera.render("signup/complete.html", &context);
+    Ok((jar, axum::response::Html(output.unwrap())))
 }
