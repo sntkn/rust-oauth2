@@ -66,9 +66,28 @@ CREATE TABLE oauth2_refresh_tokens (
     FOREIGN KEY (access_token) REFERENCES oauth2_tokens (access_token)
 );
 
---ユーザーにテーブル操作権限をまとめて付与
-GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app;
-
 insert into oauth2_clients (id, name, redirect_uris, created_at, updated_at) values ('550e8400-e29b-41d4-a716-446655440000', 'test client', 'http://localhost:8000/callback', now(), now());
 insert into oauth2_clients (id, name, redirect_uris, created_at, updated_at) values ('684C406F-D7CA-42B0-B7AC-E2120B48B057', 'test client', 'http://localhost:3000/callback', now(), now());
 insert into users (id, name, email, password, created_at, updated_at) values ('4E77D89C-F28E-4232-BAC0-4ABB31B94590', 'test user', 'test@example.com', '$2b$12$vfRQNfS.lHKvZWeS8y4tA.Rrhi7.L7i7oTSPsRn2mzjPsJajMGC2m', now(), now()); /* password: Test1234 */
+
+
+CREATE DATABASE app;
+
+--ユーザーにDBの権限をまとめて付与
+GRANT ALL PRIVILEGES ON DATABASE app TO app;
+
+-- app データベースに接続
+\c app;
+
+-- posts テーブル
+CREATE TABLE posts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,
+    subject VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT current_timestamp,
+    updated_at TIMESTAMP DEFAULT current_timestamp
+);
+
+--ユーザーにテーブル操作権限をまとめて付与
+GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO app;
