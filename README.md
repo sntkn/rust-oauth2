@@ -24,6 +24,16 @@ DATABASE_URL=postgres://app:pass@localhost/auth cargo watch -x run
 - GET /me -> return user information
 - DELETE /token -> revoke token
 
+#### API
+
+- GET /users/{user_id}/articles
+- POST /users/{user_id}/articles
+- POST /users/{user_id}/articles/{article_id}/publish
+- PUT /users/{user_id}/articles/{article_id}
+- DELETE /users/{user_id}/articles/{article_id}
+- GET /articles
+- GET /articles/{article_id}
+
 ## PostgreSQL
 
 ```zsh
