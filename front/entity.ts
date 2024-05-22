@@ -9,3 +9,9 @@ export type Token = {
   refreshToken: string
   expiresIn: number
 }
+
+export type Article = {
+  id: string
+  title: string
+  content: string
+}
