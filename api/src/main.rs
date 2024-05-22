@@ -25,16 +25,20 @@ async fn main() {
     let repo = repository::Repository::new(db_url).await.unwrap();
     let state = AppState { repo };
 
-    let router = Router::new()
+    let router = Router::new().route("/articles", get(find_articles));
+
+    let token_router = Router::new()
         .route("/user", get(find_user).put(edit_user))
-        .layer(axum::middleware::from_fn(auth_middleware))
-        .with_state(state);
+        .route("/articles", get(find_articles))
+        .layer(axum::middleware::from_fn(auth_middleware));
+
+    let app = router.merge(token_router).with_state(state);
 
     let listner = tokio::net::TcpListener::bind("127.0.0.1:3001")
         .await
         .unwrap();
 
-    axum::serve(listner, router).await.unwrap();
+    axum::serve(listner, app).await.unwrap();
 }
 
 #[derive(Serialize, Deserialize)]
@@ -104,6 +108,36 @@ async fn edit_user(
         name: user.name,
         email: user.email,
     };
+    let data = serde_json::json!(data);
+
+    Ok(Json(data))
+}
+
+#[derive(Serialize, Deserialize)]
+struct Article {
+    id: Uuid,
+    title: String,
+    content: String,
+}
+
+async fn find_articles(
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let resarticles = state
+        .repo
+        .find_articles()
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    let mut data = Vec::new();
+
+    for article in resarticles {
+        data.push(Article {
+            id: article.id,
+            title: article.title,
+            content: article.content,
+        });
+    }
     let data = serde_json::json!(data);
 
     Ok(Json(data))

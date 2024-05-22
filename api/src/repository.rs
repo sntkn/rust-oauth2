@@ -1,5 +1,4 @@
-use crate::entity::users;
-use chrono::{Local, NaiveDateTime};
+use crate::entity::{articles, users};
 use sea_orm::*;
 use uuid::Uuid;
 
@@ -37,5 +36,9 @@ impl Repository {
             user.email = Set(email)
         }
         user.update(&self.db).await
+    }
+
+    pub async fn find_articles(&self) -> Result<Vec<articles::Model>, DbErr> {
+        articles::Entity::find().all(&self.db).await
     }
 }
