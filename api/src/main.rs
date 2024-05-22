@@ -2,17 +2,17 @@ mod entity;
 mod repository;
 
 use axum::{
-    extract::{Extension, Path, Request, State},
+    extract::{Extension, Request, State},
     http::StatusCode,
     middleware::Next,
-    response::{Html, IntoResponse, Redirect, Response},
-    routing::{get, post},
+    response::Response,
+    routing::get,
     Json, Router,
 };
 use serde::{Deserialize, Serialize};
 use std::env;
 use uuid::Uuid;
-use validator::{Validate, ValidationError};
+use validator::Validate;
 
 #[derive(Clone)]
 struct AppState {
@@ -29,7 +29,6 @@ async fn main() {
 
     let token_router = Router::new()
         .route("/user", get(find_user).put(edit_user))
-        .route("/articles", get(find_articles))
         .layer(axum::middleware::from_fn(auth_middleware));
 
     let app = router.merge(token_router).with_state(state);
