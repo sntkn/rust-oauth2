@@ -81,12 +81,12 @@ impl Repository {
     ) -> Result<articles::Model, DbErr> {
         let id = Uuid::new_v4();
         let article = articles::ActiveModel {
-            id: ActiveValue::set(id),
-            author_id: ActiveValue::set(payload.author_id),
-            title: ActiveValue::set(payload.title),
-            content: ActiveValue::set(payload.content),
-            created_at: ActiveValue::set(Some(Local::now().naive_local())),
-            updated_at: ActiveValue::set(Some(Local::now().naive_local())),
+            id: Set(id),
+            author_id: Set(payload.author_id),
+            title: Set(payload.title),
+            content: Set(payload.content),
+            created_at: Set(Some(Local::now().naive_local())),
+            updated_at: Set(Some(Local::now().naive_local())),
         };
 
         article.insert(&self.db).await
