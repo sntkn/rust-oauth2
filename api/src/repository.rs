@@ -1,4 +1,7 @@
-use crate::entity::{articles, users};
+use crate::entity::{
+    articles,
+    users::{self, Column},
+};
 use sea_orm::*;
 use uuid::Uuid;
 
@@ -39,6 +42,9 @@ impl Repository {
     }
 
     pub async fn find_articles(&self) -> Result<Vec<articles::Model>, DbErr> {
-        articles::Entity::find().all(&self.db).await
+        articles::Entity::find()
+            .order_by_desc(articles::Column::CreatedAt)
+            .all(&self.db)
+            .await
     }
 }
