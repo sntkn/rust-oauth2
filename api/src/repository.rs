@@ -1,7 +1,4 @@
-use crate::entity::{
-    articles,
-    users::{self},
-};
+use crate::entity::{articles, users};
 use chrono::Local;
 use sea_orm::*;
 use uuid::Uuid;
@@ -94,15 +91,9 @@ impl Repository {
 
     pub async fn update_article(
         &self,
-        id: Uuid,
+        mut article: articles::ActiveModel, // 関数の内部で引数articleを変更可能にするだけで、呼び出し元の変数には影響しません。
         payload: UpdateArticleParams,
     ) -> Result<articles::Model, DbErr> {
-        let mut article = self
-            .find_article(id)
-            .await?
-            .ok_or_else(|| DbErr::Custom("Article not found.".to_owned()))?
-            .into_active_model();
-
         if let Some(title) = payload.title {
             article.title = Set(title);
         }

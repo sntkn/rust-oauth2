@@ -2,13 +2,14 @@ mod entity;
 mod repository;
 
 use axum::{
-    extract::{Extension, Request, State},
+    extract::{Extension, Path, Request, State},
     http::StatusCode,
     middleware::Next,
     response::Response,
-    routing::get,
+    routing::{get, put},
     Json, Router,
 };
+use sea_orm::IntoActiveModel;
 use serde::{Deserialize, Serialize};
 use std::env;
 use uuid::Uuid;
@@ -25,10 +26,13 @@ async fn main() {
     let repo = repository::Repository::new(db_url).await.unwrap();
     let state = AppState { repo };
 
-    let router = Router::new().route("/articles", get(find_articles));
+    let router = Router::new()
+        .route("/articles", get(find_articles))
+        .route("/articles/:id", get(find_article));
 
     let token_router = Router::new()
         .route("/user", get(find_user).put(edit_user))
+        .route("/articles/:id", put(update_article))
         .layer(axum::middleware::from_fn(auth_middleware));
 
     let app = router.merge(token_router).with_state(state);
@@ -140,6 +144,79 @@ async fn find_articles(
     let data = serde_json::json!(data);
 
     Ok(Json(data))
+}
+
+async fn find_article(
+    State(state): State<AppState>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let article = state
+        .repo
+        .find_article(id)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    let data = Article {
+        id: article.id,
+        title: article.title,
+        content: article.content,
+    };
+
+    let res = serde_json::json!(data);
+
+    Ok(Json(res))
+}
+
+#[derive(Debug, Deserialize, Validate)]
+struct EditArticleInput {
+    #[serde(default)]
+    #[validate(length(min = 1, message = "Paramater 'title' can not be empty"))]
+    title: Option<String>,
+
+    #[validate(length(min = 1, message = "Paramater 'content' can not be empty"))]
+    #[validate(email)]
+    content: Option<String>,
+}
+
+async fn update_article(
+    State(state): State<AppState>,
+    Extension(claims): Extension<TokenClaims>,
+    Path(id): Path<Uuid>,
+    Json(input): Json<EditArticleInput>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let article = state
+        .repo
+        .find_article(id)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // check author
+    if article.author_id != claims.jti {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let params = repository::UpdateArticleParams {
+        title: input.title.clone(),
+        content: input.content.clone(),
+    };
+
+    let updated_article = state
+        .repo
+        .update_article(article.into_active_model(), params)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    let data = Article {
+        id: updated_article.id,
+        title: updated_article.title,
+        content: updated_article.content,
+    };
+
+    let res = serde_json::json!(data);
+
+    Ok(Json(res))
 }
 
 async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
