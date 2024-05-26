@@ -26,13 +26,13 @@ DATABASE_URL=postgres://app:pass@localhost/auth cargo watch -x run
 
 #### API
 
-- GET /users/{user_id}/articles
-- POST /users/{user_id}/articles
-- POST /users/{user_id}/articles/{article_id}/publish
-- PUT /users/{user_id}/articles/{article_id}
-- DELETE /users/{user_id}/articles/{article_id}
 - GET /articles
 - GET /articles/{article_id}
+- POST /articles
+- PUT  /articles/{article_id}
+- POST /articles/{article_id}/publish
+- PUT  /articles/{article_id}
+- DELETE /articles/{article_id}
 
 ## PostgreSQL
 
