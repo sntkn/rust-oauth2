@@ -6,7 +6,7 @@ use axum::{
     http::StatusCode,
     middleware::Next,
     response::Response,
-    routing::{get, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use sea_orm::IntoActiveModel;
@@ -32,7 +32,9 @@ async fn main() {
 
     let token_router = Router::new()
         .route("/user", get(find_user).put(edit_user))
-        .route("/articles/:id", put(update_article))
+        .route("/articles", post(create_article))
+        .route("/articles/:id", put(update_article).delete(delete_article))
+        .route("/articles/:id/publish", post(publish_article))
         .layer(axum::middleware::from_fn(auth_middleware));
 
     let app = router.merge(token_router).with_state(state);
@@ -169,6 +171,44 @@ async fn find_article(
 }
 
 #[derive(Debug, Deserialize, Validate)]
+struct CreateArticleInput {
+    #[validate(length(min = 1, message = "Paramater 'title' can not be empty"))]
+    title: String,
+
+    #[validate(length(min = 1, message = "Paramater 'content' can not be empty"))]
+    #[validate(email)]
+    content: String,
+}
+
+async fn create_article(
+    State(state): State<AppState>,
+    Extension(claims): Extension<TokenClaims>,
+    Json(input): Json<CreateArticleInput>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let params = repository::CreateArticleParams {
+        author_id: claims.jti,
+        title: input.title.clone(),
+        content: input.content.clone(),
+    };
+
+    let article = state
+        .repo
+        .create_article(params)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    let data = Article {
+        id: article.id,
+        title: article.title,
+        content: article.content,
+    };
+
+    let res = serde_json::json!(data);
+
+    Ok(Json(res))
+}
+
+#[derive(Debug, Deserialize, Validate)]
 struct EditArticleInput {
     #[serde(default)]
     #[validate(length(min = 1, message = "Paramater 'title' can not be empty"))]
@@ -212,6 +252,80 @@ async fn update_article(
         id: updated_article.id,
         title: updated_article.title,
         content: updated_article.content,
+    };
+
+    let res = serde_json::json!(data);
+
+    Ok(Json(res))
+}
+
+async fn delete_article(
+    State(state): State<AppState>,
+    Extension(claims): Extension<TokenClaims>,
+    Path(id): Path<Uuid>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let article = state
+        .repo
+        .find_article(id)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // check author
+    if article.author_id != claims.jti {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let deleted_article = state
+        .repo
+        .delete_article(article.into_active_model())
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    let data = Article {
+        id: deleted_article.id,
+        title: deleted_article.title,
+        content: deleted_article.content,
+    };
+
+    let res = serde_json::json!(data);
+
+    Ok(Json(res))
+}
+
+#[derive(Debug, Deserialize)]
+struct PublishArticleInput {
+    publish: bool,
+}
+
+async fn publish_article(
+    State(state): State<AppState>,
+    Extension(claims): Extension<TokenClaims>,
+    Path(id): Path<Uuid>,
+    Json(input): Json<PublishArticleInput>,
+) -> Result<Json<serde_json::Value>, StatusCode> {
+    let article = state
+        .repo
+        .find_article(id)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?
+        .ok_or(StatusCode::NOT_FOUND)?;
+
+    // check author
+    if article.author_id != claims.jti {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    let published_article = state
+        .repo
+        .publish_article(article.into_active_model(), input.publish)
+        .await
+        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
+
+    let data = Article {
+        id: published_article.id,
+        title: published_article.title,
+        content: published_article.content,
     };
 
     let res = serde_json::json!(data);

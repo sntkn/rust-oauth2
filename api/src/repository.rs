@@ -61,17 +61,6 @@ impl Repository {
         articles::Entity::find_by_id(id).one(&self.db).await
     }
 
-    pub async fn find_articles_by_author(
-        &self,
-        author_id: Uuid,
-    ) -> Result<Vec<articles::Model>, DbErr> {
-        articles::Entity::find()
-            .filter(articles::Column::AuthorId.eq(author_id))
-            .order_by_desc(articles::Column::CreatedAt)
-            .all(&self.db)
-            .await
-    }
-
     pub async fn create_article(
         &self,
         payload: CreateArticleParams,
@@ -82,8 +71,10 @@ impl Repository {
             author_id: Set(payload.author_id),
             title: Set(payload.title),
             content: Set(payload.content),
-            created_at: Set(Some(Local::now().naive_local())),
-            updated_at: Set(Some(Local::now().naive_local())),
+            publish_at: Set(None),
+            deleted_at: Set(None),
+            created_at: Set(Local::now().naive_local()),
+            updated_at: Set(Local::now().naive_local()),
         };
 
         article.insert(&self.db).await
@@ -100,7 +91,29 @@ impl Repository {
         if let Some(content) = payload.content {
             article.content = Set(content)
         }
-        article.updated_at = Set(Some(Local::now().naive_local()));
+        article.updated_at = Set(Local::now().naive_local());
+        article.update(&self.db).await
+    }
+
+    pub async fn publish_article(
+        &self,
+        mut article: articles::ActiveModel, // 関数の内部で引数articleを変更可能にするだけで、呼び出し元の変数には影響しません。
+        publish: bool,
+    ) -> Result<articles::Model, DbErr> {
+        let published_at = if publish {
+            Some(Local::now().naive_local())
+        } else {
+            None
+        };
+        article.publish_at = Set(published_at);
+        article.update(&self.db).await
+    }
+
+    pub async fn delete_article(
+        &self,
+        mut article: articles::ActiveModel, // 関数の内部で引数articleを変更可能にするだけで、呼び出し元の変数には影響しません。
+    ) -> Result<articles::Model, DbErr> {
+        article.deleted_at = Set(Some(Local::now().naive_local()));
         article.update(&self.db).await
     }
 }
