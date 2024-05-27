@@ -52,13 +52,18 @@ impl Repository {
 
     pub async fn find_articles(&self) -> Result<Vec<articles::Model>, DbErr> {
         articles::Entity::find()
+            .filter(articles::Column::DeletedAt.is_not_null())
+            .filter(articles::Column::PublishAt.gt(Local::now().naive_local()))
             .order_by_desc(articles::Column::CreatedAt)
             .all(&self.db)
             .await
     }
 
     pub async fn find_article(&self, id: Uuid) -> Result<Option<articles::Model>, DbErr> {
-        articles::Entity::find_by_id(id).one(&self.db).await
+        articles::Entity::find_by_id(id)
+            .filter(articles::Column::PublishAt.gt(Local::now().naive_local()))
+            .one(&self.db)
+            .await
     }
 
     pub async fn create_article(
