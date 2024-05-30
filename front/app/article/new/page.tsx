@@ -28,8 +28,8 @@ export default function UserPage() {
   }
 
   return (
-    <div className="max-w-xl mx-auto p-6 bg-white rounded-lg shadow-md">
-      <h1 className="text-2xl font-bold mb-4">記事作成</h1>
+    <div className="max-w-xl mx-auto p-6 bg-white rounded-lg shadow-md my-6">
+      <h1 className="text-2xl font-bold mb-4 text-black">記事作成</h1>
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="title">タイトル</label>
