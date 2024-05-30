@@ -53,7 +53,7 @@ impl Repository {
     pub async fn find_articles(&self) -> Result<Vec<articles::Model>, DbErr> {
         articles::Entity::find()
             .filter(articles::Column::DeletedAt.is_not_null())
-            .filter(articles::Column::PublishAt.gt(Local::now().naive_local()))
+            .filter(articles::Column::PublishedAt.gt(Local::now().naive_local()))
             .order_by_desc(articles::Column::CreatedAt)
             .all(&self.db)
             .await
@@ -61,7 +61,7 @@ impl Repository {
 
     pub async fn find_article(&self, id: Uuid) -> Result<Option<articles::Model>, DbErr> {
         articles::Entity::find_by_id(id)
-            .filter(articles::Column::PublishAt.gt(Local::now().naive_local()))
+            .filter(articles::Column::PublishedAt.gt(Local::now().naive_local()))
             .one(&self.db)
             .await
     }
@@ -76,7 +76,7 @@ impl Repository {
             author_id: Set(payload.author_id),
             title: Set(payload.title),
             content: Set(payload.content),
-            publish_at: Set(None),
+            published_at: Set(None),
             deleted_at: Set(None),
             created_at: Set(Local::now().naive_local()),
             updated_at: Set(Local::now().naive_local()),
@@ -110,7 +110,7 @@ impl Repository {
         } else {
             None
         };
-        article.publish_at = Set(published_at);
+        article.published_at = Set(published_at);
         article.update(&self.db).await
     }
 
