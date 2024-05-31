@@ -12,6 +12,7 @@ use axum::{
 use sea_orm::IntoActiveModel;
 use serde::{Deserialize, Serialize};
 use std::env;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use uuid::Uuid;
 use validator::Validate;
 
@@ -22,6 +23,11 @@ struct AppState {
 
 #[tokio::main]
 async fn main() {
+    tracing_subscriber::registry()
+        .with(EnvFilter::try_from_default_env().unwrap_or_else(|_| "debug".into()))
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
     let repo = repository::Repository::new(db_url).await.unwrap();
     let state = AppState { repo };
