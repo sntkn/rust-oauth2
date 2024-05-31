@@ -5,8 +5,7 @@ import { useParams } from 'next/navigation';
 
 import { Article } from '../../../entity'
 
-async function get(id: string): Promise<Article> {
-  console.log("=================== GET aritcle")
+async function get(id: string): Promise<Article | null> {
   const res = await fetch(`http://localhost:8000/api/articles/${id}`, {
     method: 'GET',
     headers: {
@@ -15,7 +14,10 @@ async function get(id: string): Promise<Article> {
     cache: 'no-cache',
   })
 
-  console.log(res)
+
+  if (!res.ok) {
+    return null
+  }
 
   return await res.json()
 }
@@ -31,7 +33,7 @@ export default function UserPage() {
 
   useEffect(() => {
     (async () => {
-      const article: Article = await get(id)
+      const article: Article | null = await get(id)
       if (article) {
         setTitle(article.title)
         setContent(article.content)

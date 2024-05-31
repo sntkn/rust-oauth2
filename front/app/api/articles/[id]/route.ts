@@ -3,7 +3,6 @@ import { session } from '../../../../lib/session'
 import { Article, Token } from '../../../../entity'
 
 export async function GET(req: NextRequest, context: { params: { id: string } }) {
-  console.log("=============cyns====== GET aritcle")
 
   const id = context.params.id
   const token: Token = await session().get('token');
@@ -11,9 +10,18 @@ export async function GET(req: NextRequest, context: { params: { id: string } })
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token.accessToken}`
     },
   })
+
+  if (!res.ok) {
+    return NextResponse.json({
+      message: "Could not get article."
+    }, {
+      status: res.status,
+    })
+    return NextResponse.rewrite(new URL(`/error/${res.status}`, req.url));
+  }
+
   const article: Article = await res.json()
 
   return NextResponse.json(article)
