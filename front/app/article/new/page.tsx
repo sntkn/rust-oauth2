@@ -18,7 +18,7 @@ async function create(title: string, content: string): Promise<Article> {
   return await res.json()
 }
 
-export default function UserPage() {
+export default function AuthenticatedPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const router = useRouter();
