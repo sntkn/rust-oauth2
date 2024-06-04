@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react'
 import { User } from '../../entity'
 import { getUser } from '../../lib/serverActions';
+import AuthCheck from '../../components/authCheck'
+
 
 async function fetchUer(name: string): Promise<User> {
   const res = await fetch('http://localhost:8000/api/fetchUser', {
@@ -17,7 +19,7 @@ async function fetchUer(name: string): Promise<User> {
   return await res.json()
 }
 
-export default function UserPage() {
+export default function AuthenticatedPage() {
   const [user, setUser] = useState<User | null>(null);
   const [name, setName] = useState('');
 
@@ -40,16 +42,18 @@ export default function UserPage() {
   }
 
   return (
-    <div>
-      <h1>ユーザー情報</h1>
-      <form onSubmit={handleSubmit}>
-        <input
-          className='text-black'
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        /><br />
-        <button type="submit">更新</button>
-      </form>
-    </div>
+    <AuthCheck>
+      <div>
+        <h1>ユーザー情報</h1>
+        <form onSubmit={handleSubmit}>
+          <input
+            className='text-black'
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          /><br />
+          <button type="submit">更新</button>
+        </form>
+      </div>
+    </AuthCheck>
   )
 }
