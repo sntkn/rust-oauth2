@@ -1,7 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Article } from '../../../entity'
+import { useRouter } from "next/navigation";
+import { getUser } from '../../../lib/serverActions'
 
 async function create(title: string, content: string): Promise<Article> {
   const res = await fetch('http://localhost:8000/api/articles', {
@@ -19,11 +21,33 @@ async function create(title: string, content: string): Promise<Article> {
 export default function UserPage() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const handleRedirect = async () => {
+      const token = await getUser();
+      if (!token) {
+        router.push('/');
+      } else {
+        setIsLoading(false);
+      }
+    };
+
+    handleRedirect();
+  }, [router]);
+
+  if (isLoading) {
+    return <div>Loading...</div>;
+  }
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
     (async () => {
       const res = await create(title, content);
+      if (res) {
+        router.push(`./article/{res.id}`);
+      }
     })()
   }
 
