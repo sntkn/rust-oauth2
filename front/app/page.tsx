@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Article } from '../entity'
+import Link from 'next/link'
 
 async function fetchArticles(): Promise<Article[]> {
   const res = await fetch('http://localhost:8000/api/fetchArticle', {
@@ -31,7 +32,17 @@ export default function Home() {
   return (
     <div>
       <p>App</p>
-      {articles.map(article => <li key={article.id}>title:{article.title} / content:{article.content}</li>)}
-    </div>
+      <ul>
+        {articles.map(article =>
+          <>
+            <li key={article.id}>
+              <Link href={`/article/${article.id}`}>
+                <strong>{article.title}</strong>
+              </Link>
+            </li >
+          </>
+        )}
+      </ul>
+    </div >
   )
 }

@@ -9,6 +9,7 @@ use axum::{
     routing::{get, post, put},
     Json, Router,
 };
+use chrono::NaiveDateTime;
 use sea_orm::IntoActiveModel;
 use serde::{Deserialize, Serialize};
 use std::env;
@@ -129,6 +130,11 @@ struct Article {
     id: Uuid,
     title: String,
     content: String,
+    author_id: Uuid,
+    published_at: Option<NaiveDateTime>,
+    deleted_at: Option<NaiveDateTime>,
+    created_at: NaiveDateTime,
+    updated_at: NaiveDateTime,
 }
 
 async fn find_articles(
@@ -147,6 +153,11 @@ async fn find_articles(
             id: article.id,
             title: article.title,
             content: article.content,
+            author_id: article.author_id,
+            published_at: article.published_at,
+            deleted_at: article.deleted_at,
+            created_at: article.created_at,
+            updated_at: article.updated_at,
         });
     }
     let data = serde_json::json!(data);
@@ -169,6 +180,11 @@ async fn find_article(
         id: article.id,
         title: article.title,
         content: article.content,
+        author_id: article.author_id,
+        published_at: article.published_at,
+        deleted_at: article.deleted_at,
+        created_at: article.created_at,
+        updated_at: article.updated_at,
     };
 
     let res = serde_json::json!(data);
@@ -207,6 +223,11 @@ async fn create_article(
         id: article.id,
         title: article.title,
         content: article.content,
+        author_id: article.author_id,
+        published_at: article.published_at,
+        deleted_at: article.deleted_at,
+        created_at: article.created_at,
+        updated_at: article.updated_at,
     };
 
     let res = serde_json::json!(data);
@@ -258,6 +279,11 @@ async fn update_article(
         id: updated_article.id,
         title: updated_article.title,
         content: updated_article.content,
+        author_id: updated_article.author_id,
+        published_at: updated_article.published_at,
+        deleted_at: updated_article.deleted_at,
+        created_at: updated_article.created_at,
+        updated_at: updated_article.updated_at,
     };
 
     let res = serde_json::json!(data);
@@ -292,6 +318,11 @@ async fn delete_article(
         id: deleted_article.id,
         title: deleted_article.title,
         content: deleted_article.content,
+        author_id: deleted_article.author_id,
+        published_at: deleted_article.published_at,
+        deleted_at: deleted_article.deleted_at,
+        created_at: deleted_article.created_at,
+        updated_at: deleted_article.updated_at,
     };
 
     let res = serde_json::json!(data);
@@ -332,6 +363,11 @@ async fn publish_article(
         id: published_article.id,
         title: published_article.title,
         content: published_article.content,
+        author_id: published_article.author_id,
+        published_at: published_article.published_at,
+        deleted_at: published_article.deleted_at,
+        created_at: published_article.created_at,
+        updated_at: published_article.updated_at,
     };
 
     let res = serde_json::json!(data);
