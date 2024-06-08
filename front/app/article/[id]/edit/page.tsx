@@ -40,14 +40,19 @@ export default function AuthenticatedPage() {
   }
 
   useEffect(() => {
+    if (!id) return;
     (async () => {
-      const article: Article = await get(id)
-      if (article) {
-        setTitle(article.title)
-        setContent(article.content)
+      try {
+        const article: Article = await get(id)
+        if (article) {
+          setTitle(article.title)
+          setContent(article.content)
+        }
+      } catch (error) {
+        console.error("Error setting article data:", error);
       }
     })()
-  }, [])
+  }, [id])
 
   const handleSubmit = (e: React.SyntheticEvent) => {
     e.preventDefault();
@@ -77,7 +82,8 @@ export default function AuthenticatedPage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring focus:ring-blue-200 focus:border-blue-500 text-black"
               rows={10}
               onChange={(e) => setContent(e.target.value)}
-            >{content}</textarea>
+              value={content}
+            />
           </div>
           <div>
             <button type="submit" className="w-full bg-blue-500 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
