@@ -5,7 +5,7 @@ import { Article } from '../entity'
 import Link from 'next/link'
 
 async function fetchArticles(): Promise<Article[]> {
-  const res = await fetch('http://localhost:8000/api/fetchArticle', {
+  const res = await fetch('http://localhost:8000/api/articles', {
     method: 'GET',
     headers: {
       'Content-Type': 'application/json',
