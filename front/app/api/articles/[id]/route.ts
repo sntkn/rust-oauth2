@@ -1,11 +1,10 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { session } from '../../../../lib/session'
 import { Article, Token } from '../../../../entity'
+import { getToken } from '../../../../lib/serverActions'
 
 export async function GET(req: NextRequest, context: { params: { id: string } }) {
 
   const id = context.params.id
-  const token: Token = await session().get('token');
   const res = await fetch(`http://localhost:3001/articles/${id}`, {
     method: 'GET',
     headers: {
@@ -19,7 +18,6 @@ export async function GET(req: NextRequest, context: { params: { id: string } })
     }, {
       status: res.status,
     })
-    return NextResponse.rewrite(new URL(`/error/${res.status}`, req.url));
   }
 
   const article: Article = await res.json()
@@ -30,7 +28,10 @@ export async function GET(req: NextRequest, context: { params: { id: string } })
 export async function PUT(req: NextRequest, context: { params: { id: string } }) {
   const id = context.params.id
   const data = await req.json();
-  const token: Token = await session().get('token');
+  const token: Token | null = await getToken()
+  if (!token) {
+    return null
+  }
 
   const res = await fetch(`http://localhost:3001/articles/${id}`, {
     method: 'PUT',
