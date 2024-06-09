@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { User, Token } from '../../entity';
-import { session } from '../../lib/session';
+import { User, Token } from '@/entity';
+import { session } from '@/lib/session';
 
 async function fetchToken(code: string): Promise<Token> {
   // 認可コードが取得できた場合、アクセストークンの取得リクエストを送信

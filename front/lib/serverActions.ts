@@ -1,7 +1,6 @@
 'use server'
-import { redirect } from "next/navigation";
-import { session } from '../lib/session'
-import { Token, User } from '../entity'
+import { session } from '@/lib/session'
+import { Token, User } from '@/entity'
 
 export const handleLogout = async (): Promise<Boolean> => {
   const token: Token = await session().get('token')

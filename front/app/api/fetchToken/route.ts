@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { Token } from '../../../entity'
+import { Token } from '@/entity'
 
 type TokenResponse = {
   access_token: string

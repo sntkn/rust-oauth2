@@ -1,5 +1,5 @@
-import { Article, User } from '../../../entity'
-import { getUser } from '../../../lib/serverActions'
+import { Article, User } from '@/entity'
+import { getUser } from '@/lib/serverActions'
 import Link from 'next/link';
 
 async function get(id: string): Promise<Article | null> {

@@ -2,7 +2,7 @@
 
 import { ReactNode, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { getUser } from '../lib/serverActions'
+import { getUser } from '@/lib/serverActions'
 
 
 // 認証チェックコンポーネント

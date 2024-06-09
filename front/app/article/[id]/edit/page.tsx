@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react'
 import { useParams } from 'next/navigation';
-import { Article } from '../../../../entity'
-import AuthCheck from '../../../../components/authCheck'
+import { Article } from '@//entity'
+import AuthCheck from '@/components/authCheck'
 
 
 async function update(id: string, title: string, content: string): Promise<Article> {

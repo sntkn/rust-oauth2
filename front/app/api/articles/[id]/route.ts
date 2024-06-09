@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { Article, Token } from '../../../../entity'
-import { getToken } from '../../../../lib/serverActions'
+import { Article, Token } from '@/entity'
+import { getToken } from '@/lib/serverActions'
 
 export async function GET(req: NextRequest, context: { params: { id: string } }) {
 

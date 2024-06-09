@@ -1,9 +1,9 @@
 'use client'
 
 import { useState } from 'react'
-import { Article } from '../../../entity'
 import { useRouter } from "next/navigation";
-import AuthCheck from '../../../components/authCheck'
+import { Article } from '@/entity'
+import AuthCheck from '@/components/authCheck'
 
 async function create(title: string, content: string): Promise<Article> {
   const res = await fetch('http://localhost:8000/api/articles', {

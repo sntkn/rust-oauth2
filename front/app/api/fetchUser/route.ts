@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { User, Token } from '../../../entity'
-import { session } from '../../../lib/session'
+import { User, Token } from '@/entity'
+import { session } from '@/lib/session'
 
 export async function GET(req: NextRequest) {
   const token = req.headers.get('Authorization')?.split(' ')[1];

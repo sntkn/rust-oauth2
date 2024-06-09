@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { User } from '../../entity'
-import { getUser } from '../../lib/serverActions';
-import AuthCheck from '../../components/authCheck'
+import { User } from '@/entity'
+import { getUser } from '@/lib/serverActions';
+import AuthCheck from '@/components/authCheck'
 
 
 async function fetchUer(name: string): Promise<User> {

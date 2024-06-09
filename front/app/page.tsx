@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Article } from '../entity'
+import { Article } from '@/entity'
 import Link from 'next/link'
 
 async function fetchArticles(): Promise<Article[]> {

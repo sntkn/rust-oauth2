@@ -3,8 +3,8 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation';
-import { User } from '../entity'
-import { handleLogout, getUser } from '../lib/serverActions';
+import { User } from '@/entity'
+import { handleLogout, getUser } from '@/lib/serverActions';
 
 const Header = () => {
   const [user, setUser] = useState<User | null>(null);

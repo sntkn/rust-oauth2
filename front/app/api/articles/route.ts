@@ -1,5 +1,5 @@
 import { NextResponse, NextRequest } from 'next/server';
-import { Article, Token } from '../../../entity'
+import { Article, Token } from '@/entity'
 import { getToken } from '@/lib/serverActions';
 
 export async function POST(req: NextRequest) {
