@@ -1,18 +1,13 @@
-use axum::{
-    extract::{Request, State},
-    http::StatusCode,
-    middleware::Next,
-    response::Response,
-};
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-struct TokenClaims {
-    sub: String, // access_token
-    jti: Uuid,   // user_id
-    exp: i64,
-    iat: i64,
+pub struct TokenClaims {
+    pub sub: String, // access_token
+    pub jti: Uuid,   // user_id
+    pub exp: i64,
+    pub iat: i64,
 }
 
 pub async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
