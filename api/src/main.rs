@@ -1,11 +1,9 @@
-mod entity;
-mod repository;
-
+use api::app_state::AppState;
+use api::middleware;
+use api::repository;
 use axum::{
-    extract::{Extension, Path, Request, State},
+    extract::{Extension, Path, State},
     http::StatusCode,
-    middleware::Next,
-    response::Response,
     routing::{get, post, put},
     Json, Router,
 };
@@ -16,11 +14,6 @@ use std::env;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 use uuid::Uuid;
 use validator::Validate;
-
-#[derive(Clone)]
-struct AppState {
-    repo: repository::Repository,
-}
 
 #[tokio::main]
 async fn main() {
@@ -42,7 +35,7 @@ async fn main() {
         .route("/articles", post(create_article))
         .route("/articles/:id", put(update_article).delete(delete_article))
         .route("/articles/:id/publish", post(publish_article))
-        .layer(axum::middleware::from_fn(auth_middleware));
+        .layer(axum::middleware::from_fn(middleware::auth_middleware));
 
     let app = router.merge(token_router).with_state(state);
 
@@ -373,35 +366,4 @@ async fn publish_article(
     let res = serde_json::json!(data);
 
     Ok(Json(res))
-}
-
-async fn auth_middleware(mut req: Request, next: Next) -> Result<Response, StatusCode> {
-    let headers = req.headers();
-    // Authorization ヘッダからアクセストークン取得
-    let authorization = headers
-        .get("Authorization")
-        .ok_or(StatusCode::UNAUTHORIZED)?
-        .to_str()
-        .unwrap();
-    let token = authorization.split(' ').last().unwrap();
-
-    // トークンをAuthにチェックしてもらう
-    let client = reqwest::Client::new();
-    let response = client
-        .post("http://localhost:3000/introspect")
-        .header("Authorization", format!("Bearer {}", token))
-        .send()
-        .await
-        .or(Err(StatusCode::INTERNAL_SERVER_ERROR))?;
-
-    if response.status().is_success() {
-        let body = response.text().await.unwrap();
-        let auth_response: TokenClaims = serde_json::from_str(&body).unwrap();
-        println!("Response: {}", body);
-        req.extensions_mut().insert(auth_response);
-        Ok(next.run(req).await)
-    } else {
-        println!("Request Failed with status: {}", response.status());
-        Err(response.status())
-    }
 }
