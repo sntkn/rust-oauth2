@@ -1,7 +1,6 @@
-use async_session::Session;
 use axum::{
     debug_handler,
-    extract::{Extension, State},
+    extract::State,
     http::StatusCode,
     response::{IntoResponse, Redirect},
     Form,
@@ -19,15 +18,10 @@ use validator::Validate;
 use crate::app_state::AppState;
 use crate::repository::db_repository;
 use crate::util::flash_message;
+use crate::util::request_context::SessionContext;
 use crate::util::session_manager;
 use crate::util::str;
 use crate::validation::validate_password;
-
-#[derive(Debug, Deserialize, Serialize, Default)]
-struct AuthorizationInputValue {
-    email: Option<String>,
-    password: Option<String>,
-}
 
 #[derive(Debug, Deserialize, Validate, Serialize)]
 pub struct AuthorizationInput {
@@ -57,20 +51,15 @@ struct AuthorizeValue {
 #[debug_handler]
 pub async fn invoke(
     State(state): State<AppState>,
-    Extension(session): Extension<Session>,
+    session_ctx: SessionContext,
     Form(input): Form<AuthorizationInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let auth: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
+    let session = &session_ctx.session;
+    let auth: AuthorizeValue = unmarshal_from_session(session, "auth");
 
-    marshal_to_session(
-        &state.store,
-        &session,
-        "authorization_input".to_string(),
-        &input,
-    )
-    .await;
+    marshal_to_session(&state.store, session, "authorization_input", &input).await;
 
-    let mut flash_message = FlashMessage::new(&state.store, &session).await;
+    let mut flash_message = FlashMessage::new(&state.store, session);
 
     if let Err(errors) = input.validate() {
         for (field, errors) in errors.field_errors() {

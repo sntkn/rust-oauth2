@@ -1,9 +1,8 @@
-use axum::{extract::State, http::StatusCode, response::IntoResponse, Extension, Json};
-use jwt::TokenClaims;
+use axum::{extract::State, http::StatusCode, response::IntoResponse, Json};
 use serde::Serialize;
 
 use crate::app_state::AppState;
-use crate::util::jwt;
+use crate::util::request_context::AuthClaims;
 
 #[derive(Serialize)]
 struct UserResponse {
@@ -14,7 +13,7 @@ struct UserResponse {
 
 pub async fn invoke(
     State(state): State<AppState>,
-    Extension(claims): Extension<TokenClaims>,
+    AuthClaims(claims): AuthClaims,
 ) -> Result<impl IntoResponse, StatusCode> {
     // ユーザー情報取得
     let user = state

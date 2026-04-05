@@ -10,7 +10,7 @@ pub struct FlashMessage<'a> {
 }
 
 impl<'a> FlashMessage<'a> {
-    pub async fn new(store: &'a RedisSessionStore, session: &'a Session) -> FlashMessage<'a> {
+    pub fn new(store: &'a RedisSessionStore, session: &'a Session) -> FlashMessage<'a> {
         FlashMessage {
             store,
             session,
@@ -26,16 +26,15 @@ impl<'a> FlashMessage<'a> {
         marshal_to_session(
             self.store,
             self.session,
-            "flash_message".to_string(),
+            "flash_message",
             &self.messages,
         )
         .await;
     }
 
     pub async fn pull(&mut self) -> Vec<String> {
-        let val: Vec<String> =
-            unmarshal_from_session(self.session, "flash_message".to_string()).await;
-        remove_session(self.store, self.session, "flash_message".to_string()).await;
+        let val: Vec<String> = unmarshal_from_session(self.session, "flash_message");
+        remove_session(self.store, self.session, "flash_message").await;
         val
     }
 }

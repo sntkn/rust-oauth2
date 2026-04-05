@@ -1,16 +1,15 @@
 use axum::{
-    extract::{Extension, State},
+    extract::State,
     http::StatusCode,
     response::IntoResponse,
 };
-use jwt::TokenClaims;
 
 use crate::app_state::AppState;
-use crate::util::jwt;
+use crate::util::request_context::AuthClaims;
 
 pub async fn invoke(
     State(state): State<AppState>,
-    Extension(claims): Extension<TokenClaims>,
+    AuthClaims(claims): AuthClaims,
 ) -> Result<impl IntoResponse, StatusCode> {
     // アクセストークンを破棄
     state

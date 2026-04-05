@@ -28,14 +28,11 @@ pub async fn manage_session(
     (session, jar)
 }
 
-pub async fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
+pub fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
     session: &Session,
-    key: String,
+    key: &str,
 ) -> T {
-    let sess_val =
-        session
-            .get::<String>(&key)
-            .unwrap_or_else(|| match serde_json::to_value(&T::default()) {
+    let sess_val = session.get::<String>(key).unwrap_or_else(|| match serde_json::to_value(&T::default()) {
                 Ok(val) => match val {
                     Value::Array(_) => "[]".to_string(),
                     _ => "{}".to_string(),
@@ -48,21 +45,21 @@ pub async fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
 pub async fn marshal_to_session<T: Serialize>(
     store: &RedisSessionStore,
     session: &Session,
-    key: String,
+    key: &str,
     val: &T,
 ) {
     let v = serde_json::to_string(&val).unwrap();
     let mut session_clone = session.clone();
 
-    session_clone.insert(&key.to_string(), v).unwrap();
+    session_clone.insert(key, v).unwrap();
 
     store.store_session(session_clone).await.unwrap();
 }
 
-pub async fn remove_session(store: &RedisSessionStore, session: &Session, key: String) {
+pub async fn remove_session(store: &RedisSessionStore, session: &Session, key: &str) {
     let mut session_clone = session.clone();
 
-    session_clone.remove(&key.to_string());
+    session_clone.remove(key);
 
     store.store_session(session_clone).await.unwrap();
 }

@@ -1,10 +1,9 @@
-use axum::{http::StatusCode, response::IntoResponse, Extension, Json};
-use jwt::TokenClaims;
+use axum::{http::StatusCode, response::IntoResponse, Json};
 
-use crate::util::jwt;
+use crate::util::request_context::AuthClaims;
 
 pub async fn invoke(
-    Extension(claims): Extension<TokenClaims>,
+    AuthClaims(claims): AuthClaims,
 ) -> Result<impl IntoResponse, StatusCode> {
     Ok(Json(claims))
 }

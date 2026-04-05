@@ -1,10 +1,8 @@
-use async_session::Session;
 use axum::{
-    extract::{Extension, Query, State},
+    extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
 };
-use axum_extra::extract::cookie::CookieJar;
 use flash_message::FlashMessage;
 use serde::{Deserialize, Serialize};
 use session_manager::{marshal_to_session, remove_session, unmarshal_from_session};
@@ -13,6 +11,7 @@ use validator::Validate;
 
 use crate::app_state::AppState;
 use crate::util::flash_message;
+use crate::util::request_context::SessionContext;
 use crate::util::session_manager;
 use crate::validation::{validate_code, validate_uuid};
 
@@ -62,12 +61,12 @@ struct AuthorizeJson {
 
 pub async fn invoke(
     State(state): State<AppState>,
-    Extension(session): Extension<Session>,
-    Extension(jar): Extension<CookieJar>,
+    session_ctx: SessionContext,
     Query(mut input): Query<AuthorizeInput>,
-) -> Result<(CookieJar, impl IntoResponse), StatusCode> {
+) -> Result<(axum_extra::extract::cookie::CookieJar, impl IntoResponse), StatusCode> {
+    let SessionContext { session, jar } = session_ctx;
     // セッションをまず取得して、さらにリクエストパラメータがあったら上書きする
-    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth".to_string()).await;
+    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth");
 
     if input.response_type.is_empty() && auth_val.response_type.is_some() {
         input.response_type = auth_val.response_type.unwrap();
@@ -109,14 +108,14 @@ pub async fn invoke(
         response_type: input.response_type,
     };
 
-    marshal_to_session(&state.store, &session, "auth".to_string(), &json).await;
+    marshal_to_session(&state.store, &session, "auth", &json).await;
 
     let input_val: AuthorizationInputValue =
-        unmarshal_from_session(&session, "authorization_input".to_string()).await;
+        unmarshal_from_session(&session, "authorization_input");
 
-    remove_session(&state.store, &session, "authorization_input".to_string()).await;
+    remove_session(&state.store, &session, "authorization_input").await;
 
-    let mut flash_message = FlashMessage::new(&state.store, &session).await;
+    let mut flash_message = FlashMessage::new(&state.store, &session);
 
     let messages = flash_message.pull().await;
 
