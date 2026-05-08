@@ -1,17 +1,17 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::{Html, IntoResponse},
 };
 use flash_message::FlashMessage;
 use serde::{Deserialize, Serialize};
+use tower_sessions::Session;
 use session_manager::{marshal_to_session, remove_session, unmarshal_from_session};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::app_state::AppState;
 use crate::util::flash_message;
-use crate::util::request_context::SessionContext;
 use crate::util::session_manager;
 use crate::validation::{validate_code, validate_uuid};
 
@@ -61,12 +61,11 @@ struct AuthorizeJson {
 
 pub async fn invoke(
     State(state): State<AppState>,
-    session_ctx: SessionContext,
+    session: Session,
     Query(mut input): Query<AuthorizeInput>,
-) -> Result<(axum_extra::extract::cookie::CookieJar, impl IntoResponse), StatusCode> {
-    let SessionContext { session, jar } = session_ctx;
+) -> Result<impl IntoResponse, StatusCode> {
     // セッションをまず取得して、さらにリクエストパラメータがあったら上書きする
-    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth");
+    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth").await;
 
     if input.response_type.is_empty() && auth_val.response_type.is_some() {
         input.response_type = auth_val.response_type.unwrap();
@@ -108,14 +107,14 @@ pub async fn invoke(
         response_type: input.response_type,
     };
 
-    marshal_to_session(&state.store, &session, "auth", &json).await;
+    marshal_to_session(&session, "auth", &json).await;
 
     let input_val: AuthorizationInputValue =
-        unmarshal_from_session(&session, "authorization_input");
+        unmarshal_from_session(&session, "authorization_input").await;
 
-    remove_session(&state.store, &session, "authorization_input").await;
+    remove_session(&session, "authorization_input").await;
 
-    let mut flash_message = FlashMessage::new(&state.store, &session);
+    let mut flash_message = FlashMessage::new(&session);
 
     let messages = flash_message.pull().await;
 
@@ -130,7 +129,7 @@ pub async fn invoke(
 
     // ログインフォームを表示する
     match tera.render("index.html", &context) {
-        Ok(output) => Ok((jar, axum::response::Html(output))),
+        Ok(output) => Ok(Html(output)),
         Err(e) => {
             eprintln!("Error rendering template: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)

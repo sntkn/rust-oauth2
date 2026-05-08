@@ -1,18 +1,18 @@
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::{IntoResponse, Redirect},
+    response::{Html, IntoResponse, Redirect},
     Form,
 };
 use flash_message::FlashMessage;
 use serde::{Deserialize, Serialize};
+use tower_sessions::Session;
 use session_manager::{marshal_to_session, remove_session, unmarshal_from_session};
 use uuid::Uuid;
 use validator::Validate;
 
 use crate::app_state::AppState;
 use crate::util::flash_message;
-use crate::util::request_context::SessionContext;
 use crate::util::session_manager;
 use crate::validation::{validate_code, validate_password, validate_uuid};
 
@@ -62,12 +62,11 @@ struct AuthorizeJson {
 
 pub async fn new(
     State(state): State<AppState>,
-    session_ctx: SessionContext,
+    session: Session,
     Query(mut input): Query<AuthorizeInput>,
-) -> Result<(axum_extra::extract::cookie::CookieJar, impl IntoResponse), StatusCode> {
-    let SessionContext { session, jar } = session_ctx;
+) -> Result<impl IntoResponse, StatusCode> {
     // セッションをまず取得して、さらにリクエストパラメータがあったら上書きする
-    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth");
+    let auth_val: AuthorizeValue = unmarshal_from_session(&session, "auth").await;
 
     if input.response_type.is_empty() && auth_val.response_type.is_some() {
         input.response_type = auth_val.response_type.unwrap();
@@ -111,13 +110,13 @@ pub async fn new(
         response_type: input.response_type,
     };
 
-    marshal_to_session(&state.store, &session, "auth", &json).await;
+    marshal_to_session(&session, "auth", &json).await;
 
-    let input_val: SingupInputValue = unmarshal_from_session(&session, "signup_input");
+    let input_val: SingupInputValue = unmarshal_from_session(&session, "signup_input").await;
 
-    remove_session(&state.store, &session, "signup_input").await;
+    remove_session(&session, "signup_input").await;
 
-    let mut flash_message = FlashMessage::new(&state.store, &session);
+    let mut flash_message = FlashMessage::new(&session);
 
     let messages = flash_message.pull().await;
 
@@ -132,7 +131,7 @@ pub async fn new(
 
     // サインアップフォームを表示する
     match tera.render("signup/new.html", &context) {
-        Ok(output) => Ok((jar, axum::response::Html(output))),
+        Ok(output) => Ok(Html(output)),
         Err(e) => {
             eprintln!("Error rendering template: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)
@@ -153,13 +152,12 @@ pub struct SignupInput {
 
 pub async fn create(
     State(state): State<AppState>,
-    session_ctx: SessionContext,
+    session: Session,
     Form(input): Form<SignupInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let session = &session_ctx.session;
-    marshal_to_session(&state.store, session, "signup_input", &input).await;
+    marshal_to_session(&session, "signup_input", &input).await;
 
-    let mut flash_message = FlashMessage::new(&state.store, session);
+    let mut flash_message = FlashMessage::new(&session);
 
     // TODO ログイン中は弾く
 
@@ -198,14 +196,13 @@ pub async fn create(
 }
 
 pub async fn complete(
-    State(state): State<AppState>,
-    session_ctx: SessionContext,
-) -> Result<(axum_extra::extract::cookie::CookieJar, impl IntoResponse), StatusCode> {
-    let SessionContext { session, jar } = session_ctx;
+    State(_state): State<AppState>,
+    session: Session,
+) -> Result<impl IntoResponse, StatusCode> {
     // TODO ログイン中は弾く
     // TODO コンプリートフラグのチェック
 
-    let mut flash_message = FlashMessage::new(&state.store, &session);
+    let mut flash_message = FlashMessage::new(&session);
 
     let tera = tera::Tera::new("templates/**/*").unwrap();
     let mut context = tera::Context::new();
@@ -214,7 +211,7 @@ pub async fn complete(
     context.insert("flash_messages", &messages);
 
     match tera.render("signup/complete.html", &context) {
-        Ok(output) => Ok((jar, axum::response::Html(output))),
+        Ok(output) => Ok(Html(output)),
         Err(e) => {
             eprintln!("Error rendering template: {}", e);
             Err(StatusCode::INTERNAL_SERVER_ERROR)

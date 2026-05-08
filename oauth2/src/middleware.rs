@@ -7,11 +7,9 @@ use axum::{
 use chrono::Local;
 use jsonwebtoken::DecodingKey;
 use jwt::decode_token;
-use session_manager::manage_session;
 
 use crate::app_state::AppState;
 use crate::util::jwt;
-use crate::util::session_manager;
 
 pub async fn auth_middleware(
     State(state): State<AppState>,
@@ -50,19 +48,6 @@ pub async fn auth_middleware(
     }
 
     req.extensions_mut().insert(token_message);
-
-    Ok(next.run(req).await)
-}
-
-pub async fn session_middleware(
-    State(state): State<AppState>,
-    mut req: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
-    let (session, jar) = manage_session(&state.store, req.headers()).await;
-
-    req.extensions_mut().insert(session);
-    req.extensions_mut().insert(jar);
 
     Ok(next.run(req).await)
 }

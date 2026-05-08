@@ -1,65 +1,30 @@
-use async_redis_session::RedisSessionStore;
-use async_session::Session;
-use async_session::SessionStore;
-use axum::http::HeaderMap;
-use axum_extra::extract::cookie::{Cookie as EntityCookie, CookieJar};
 use serde::{de::DeserializeOwned, Serialize};
 use serde_json::{self, Value};
+use tower_sessions::Session;
 
-pub async fn manage_session(
-    store: &RedisSessionStore,
-    headers: &HeaderMap,
-) -> (Session, CookieJar) {
-    let session = Session::new();
-    let jar = CookieJar::from_headers(headers);
-    let cookie = {
-        let cookie_value = store.store_session(session).await.unwrap().unwrap();
-        let cookie_entity = EntityCookie::new("session_id", cookie_value);
-        let cookie = jar.get("session_id").unwrap_or(&cookie_entity);
-        cookie.clone()
-    };
-    let jar = jar.add(cookie.clone());
-    let session = store
-        .load_session(cookie.value().to_string())
-        .await
-        .unwrap()
-        .unwrap();
-
-    (session, jar)
-}
-
-pub fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
+pub async fn unmarshal_from_session<T: DeserializeOwned + Serialize + Default>(
     session: &Session,
     key: &str,
 ) -> T {
-    let sess_val = session.get::<String>(key).unwrap_or_else(|| match serde_json::to_value(&T::default()) {
-                Ok(val) => match val {
-                    Value::Array(_) => "[]".to_string(),
-                    _ => "{}".to_string(),
-                },
-                Err(_) => "{}".to_string(),
-            });
+    let sess_val = session
+        .get::<String>(key)
+        .await
+        .unwrap()
+        .unwrap_or_else(|| match serde_json::to_value(&T::default()) {
+            Ok(val) => match val {
+                Value::Array(_) => "[]".to_string(),
+                _ => "{}".to_string(),
+            },
+            Err(_) => "{}".to_string(),
+        });
     serde_json::from_str(&sess_val).unwrap()
 }
 
-pub async fn marshal_to_session<T: Serialize>(
-    store: &RedisSessionStore,
-    session: &Session,
-    key: &str,
-    val: &T,
-) {
+pub async fn marshal_to_session<T: Serialize>(session: &Session, key: &str, val: &T) {
     let v = serde_json::to_string(&val).unwrap();
-    let mut session_clone = session.clone();
-
-    session_clone.insert(key, v).unwrap();
-
-    store.store_session(session_clone).await.unwrap();
+    session.insert(key, v).await.unwrap();
 }
 
-pub async fn remove_session(store: &RedisSessionStore, session: &Session, key: &str) {
-    let mut session_clone = session.clone();
-
-    session_clone.remove(key);
-
-    store.store_session(session_clone).await.unwrap();
+pub async fn remove_session(session: &Session, key: &str) {
+    let _: Option<String> = session.remove(key).await.unwrap();
 }

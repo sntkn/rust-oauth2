@@ -9,6 +9,7 @@ use bcrypt::verify;
 use chrono::{Duration, Local};
 use flash_message::FlashMessage;
 use serde::{Deserialize, Serialize};
+use tower_sessions::Session;
 use session_manager::{marshal_to_session, unmarshal_from_session};
 use str::generate_random_string;
 use url::Url;
@@ -18,7 +19,6 @@ use validator::Validate;
 use crate::app_state::AppState;
 use crate::repository::db_repository;
 use crate::util::flash_message;
-use crate::util::request_context::SessionContext;
 use crate::util::session_manager;
 use crate::util::str;
 use crate::validation::validate_password;
@@ -51,15 +51,14 @@ struct AuthorizeValue {
 #[debug_handler]
 pub async fn invoke(
     State(state): State<AppState>,
-    session_ctx: SessionContext,
+    session: Session,
     Form(input): Form<AuthorizationInput>,
 ) -> Result<impl IntoResponse, StatusCode> {
-    let session = &session_ctx.session;
-    let auth: AuthorizeValue = unmarshal_from_session(session, "auth");
+    let auth: AuthorizeValue = unmarshal_from_session(&session, "auth").await;
 
-    marshal_to_session(&state.store, session, "authorization_input", &input).await;
+    marshal_to_session(&session, "authorization_input", &input).await;
 
-    let mut flash_message = FlashMessage::new(&state.store, session);
+    let mut flash_message = FlashMessage::new(&session);
 
     if let Err(errors) = input.validate() {
         for (field, errors) in errors.field_errors() {

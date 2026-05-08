@@ -1,10 +1,12 @@
 use std::env;
 
-use async_redis_session::RedisSessionStore;
 use axum::{
     routing::{get, post},
     Router,
 };
+use time::Duration;
+use tower_sessions::{Expiry, SessionManagerLayer};
+use tower_sessions_redis_store::{fred::prelude::*, RedisStore};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};
 
 use oauth2::app_state::AppState;
@@ -19,22 +21,32 @@ async fn main() {
         .with(tracing_subscriber::fmt::layer())
         .init();
 
-    let store = RedisSessionStore::new("redis://localhost:6379/").unwrap();
+    let redis_pool = Pool::new(
+        Config::from_url("redis://localhost:6379/").unwrap(),
+        None,
+        None,
+        None,
+        6,
+    )
+    .unwrap();
+    let _redis_conn = redis_pool.connect();
+    redis_pool.wait_for_connect().await.unwrap();
+    let session_store = RedisStore::new(redis_pool);
+    let session_layer = SessionManagerLayer::new(session_store)
+        .with_secure(false)
+        .with_expiry(Expiry::OnInactivity(Duration::hours(1)));
 
     let db_url = env::var("DATABASE_URL").expect("DATABASE_URL is not set in .env file");
     let repo = db_repository::Repository::new(db_url).await.unwrap();
 
-    let state = AppState { store, repo };
+    let state = AppState { repo };
 
     let session_router = Router::new()
         .route("/authorize", get(authorize::invoke)) // http://localhost:3000/authorize?response_type=code&state=3&client_id=550e8400-e29b-41d4-a716-446655440000&redirect_uri=http%3A%2F%2Flocalhost%3A8000%2Fcallback
         .route("/authorization", post(authorization::invoke))
         .route("/signup", get(signup::new).post(signup::create))
         .route("/signup/complete", get(signup::complete))
-        .layer(axum::middleware::from_fn_with_state(
-            state.clone(),
-            middleware::session_middleware,
-        ));
+        .layer(session_layer);
     let token_router = Router::new().route("/token", post(create_token::invoke));
     let auth_router = Router::new()
         .route("/me", get(me::invoke))
